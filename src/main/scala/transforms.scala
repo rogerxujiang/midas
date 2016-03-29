@@ -65,8 +65,8 @@ object transforms {
     daisyPins(w) = w.io.daisy
   }
 
-  private[strober] def init[T <: Module](w: NASTIShim[SimNetwork]) {
-    w setName s"${targetName}NASTIShim"
+  private[strober] def init[T <: Module](w: NastiShim[SimNetwork]) {
+    w setName s"${targetName}NastiShim"
   }
 
 
@@ -318,7 +318,7 @@ object transforms {
   }
 
   private val dumpMaps: Module => Unit = {
-    case w: NASTIShim[SimNetwork] if Driver.chiselConfigDump => 
+    case w: NastiShim[SimNetwork] if Driver.chiselConfigDump => 
       object MapType extends Enumeration { val IoIn, IoOut, InTr, OutTr = Value }
       ChiselError.info("[Strober Transforms] dump io & mem mapping")
       def dump(map_t: MapType.Value, arg: (Bits, Int)) = arg match { 
@@ -384,7 +384,7 @@ object transforms {
     }
 
     c match { 
-      case _: NASTIShim[SimNetwork] if Driver.chiselConfigDump =>
+      case _: NastiShim[SimNetwork] if Driver.chiselConfigDump =>
         val file = Driver.createOutputFile(targetName + ".chain")
         try {
           file write res.result
@@ -397,7 +397,7 @@ object transforms {
   }
 
   private val dumpConsts: Module => Unit = {
-    case w: NASTIShim[SimNetwork] if Driver.chiselConfigDump => 
+    case w: NastiShim[SimNetwork] if Driver.chiselConfigDump => 
       ChiselError.info("[Strober Transforms] dump constant header")
       def dump(arg: (String, Int)) = s"#define ${arg._1} ${arg._2}\n"
       val sb = new StringBuilder

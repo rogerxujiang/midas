@@ -8,8 +8,8 @@ case object NASTIAddrSizeBits extends Field[Int]
 case object LineSize extends Field[Int]
 case object MemAddrSizeBits extends Field[Int]
 
-object NASTIShim {
-  def apply[T <: Module](c: =>T)(params: Parameters) = Module(new NASTIShim(new SimWrapper(c)))(params)
+object NastiShim {
+  def apply[T <: Module](c: =>T)(params: Parameters) = Module(new NastiShim(new SimWrapper(c)))(params)
 }
 
 class NASTIMasterHandler(simIo: SimWrapperIO, memIo: MemIO) extends NASTIModule {
@@ -226,13 +226,13 @@ class NASTISlaveHandler extends MIFModule with NASTIParameters {
   }
 }
 
-class NASTIShimIO extends Bundle {
-  val mnasti = Bundle((new NASTIMasterIO).flip, {case NASTIName => "Master"})
-  val snasti = Bundle((new NASTISlaveIO).flip,  {case NASTIName => "Slave"})
+class NastiShimIO extends Bundle {
+  val master = Bundle((new NASTIMasterIO).flip, {case NASTIName => "Master"})
+  val slave = Bundle((new NASTISlaveIO).flip,  {case NASTIName => "Slave"})
 }
 
-class NASTIShim[+T <: SimNetwork](c: =>T) extends MIFModule {
-  val io = new NASTIShimIO
+class NastiShim[+T <: SimNetwork](c: =>T) extends MIFModule {
+  val io = new NastiShimIO
   // Simulation Target
   val sim: T = Module(c)
   val ins  = Vec(sim.io.inMap  filterNot (SimMemIO contains _._1) flatMap sim.io.getIns)
@@ -273,7 +273,7 @@ class NASTIShim[+T <: SimNetwork](c: =>T) extends MIFModule {
   out_bufs foreach (_.io.enq.valid := tock && tockCounter === UInt(1))
 
   // Master Connection
-  master.io.nasti <> io.mnasti
+  master.io.nasti <> io.master
   master.io.step.ready := !tickCounter.orR && !tockCounter.orR
   when(master.io.step.fire()) { 
     tickCounter := master.io.step.bits 
@@ -312,7 +312,7 @@ class NASTIShim[+T <: SimNetwork](c: =>T) extends MIFModule {
   sim.io.daisy.cntr.out.ready := master.io.daisy.cntr.out.ready
 
   // Slave Connection
-  slave.io.nasti <> io.snasti
+  slave.io.nasti <> io.slave
   slave.io.mem <> arb.io.out
 
   // Memory Connection
