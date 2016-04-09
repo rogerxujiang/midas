@@ -77,20 +77,16 @@ object transforms {
 
   // Called from frontend
   def addRetiming(m: Module, latency: Int) {
-    (m.wires ++ Array((m.reset.name, m.reset))) foreach {
-      case (name, io) if io.dir == INPUT =>
-        // Input trace is captured to recover internal state
-        val chain = chains(ChainType.Trs) getOrElseUpdate (m, ArrayBuffer[Node]())
-        val trace = List.fill(latency){Reg(io)}
-        trace.zipWithIndex foreach {case (reg, i) =>
-          reg := (if (i == 0) io else trace(i-1))
-          reg.getNode setName s"${name}_reg_${i}"
-          m.debug(reg.getNode)
-        }
-        chain       ++= trace map (_.getNode)
-        retimingMap ++= trace map (_.getNode -> io)
-      case (name, io) if io.dir == OUTPUT => 
-        // TODO: Should we handle it?
+    (m.wires ++ Array((m.reset.name, m.reset))) foreach {case (name, io) =>
+      val chain = chains(ChainType.Trs) getOrElseUpdate (m, ArrayBuffer[Node]())
+      val trace = List.fill(latency){Reg(io)}
+      trace.zipWithIndex foreach {case (reg, i) =>
+        reg := (if (i == 0) io else trace(i-1))
+        reg.getNode setName s"${name}_reg_${i}"
+        m.debug(reg.getNode)
+      }
+      chain       ++= trace map (_.getNode)
+      retimingMap ++= trace map (_.getNode -> io)
     }
     chainLoop(ChainType.Trs) = 1
     noSnap ++= collect(m)
