@@ -83,12 +83,12 @@ class ChannelMemIOConverter extends MIFModule {
 
   val req_cmd_buf  = Module(new Queue(new MemReqCmd, 2, flow=true))
   val req_data_buf = Module(new Queue(new MemData, 2*mifDataBeats, flow=true))
-  val resp_buf     = Module(new Queue(new MemResp, 2*mifDataBeats, flow=true))
+  val resp_buf     = Module(new Queue(new MemResp, 4*mifDataBeats, flow=true))
   val latency_buf  = Module(new HellaQueue(maxLatency)(Valid(new MemResp)))
   val latency      = RegInit(UInt(0, maxLatencyWidth)) 
   val counter      = RegInit(UInt(0, maxLatencyWidth))
 
-  io.latency.ready := latency === counter
+  io.latency.ready := counter === latency
   when (io.latency.fire()) { 
     latency := io.latency.bits
     counter := UInt(0)
@@ -97,33 +97,35 @@ class ChannelMemIOConverter extends MIFModule {
   }
   latency_buf.reset := reset || io.latency.fire()
 
-  io.sim_mem.req_cmd.target.ready := Bool(true)
-  io.sim_mem.req_cmd.ready     := io.sim_mem.req_cmd.valid && req_cmd_buf.io.enq.ready &&
-                                  io.sim_mem.req_data.valid && req_data_buf.io.enq.ready &&
-                                 (latency_buf.io.deq.valid && counter === latency || !latency.orR)
-  req_cmd_buf.io.enq.bits.addr := io.sim_mem.req_cmd.target.bits.addr
-  req_cmd_buf.io.enq.bits.tag  := io.sim_mem.req_cmd.target.bits.tag
-  req_cmd_buf.io.enq.bits.rw   := io.sim_mem.req_cmd.target.bits.rw
-  req_cmd_buf.io.enq.valid     := io.sim_mem.req_cmd.target.valid && io.sim_mem.req_cmd.ready
+  val (beats, beat_wrap) = Counter(resp_buf.io.enq.fire(), mifDataBeats)
 
-  io.sim_mem.req_data.target.ready := Bool(true)
-  io.sim_mem.req_data.ready     := io.sim_mem.req_cmd.ready
-  req_data_buf.io.enq.bits.data := io.sim_mem.req_data.target.bits.data
-  req_data_buf.io.enq.valid     := io.sim_mem.req_data.target.valid && io.sim_mem.req_data.ready
+  val pipe_rdy = counter === latency || !latency.orR
+  req_cmd_buf.io.enq.bits         <> io.sim_mem.req_cmd.target.bits
+  req_cmd_buf.io.enq.valid        := io.sim_mem.req_cmd.target.fire() && io.sim_mem.req_cmd.ready
+  io.sim_mem.req_cmd.target.ready := req_cmd_buf.io.enq.ready
+  io.sim_mem.req_cmd.ready        := io.sim_mem.req_cmd.valid && pipe_rdy
 
-  io.sim_mem.resp.target.bits.data := Mux(latency.orR, latency_buf.io.deq.bits.bits.data, resp_buf.io.deq.bits.data)
-  io.sim_mem.resp.target.bits.tag  := Mux(latency.orR, latency_buf.io.deq.bits.bits.tag, resp_buf.io.deq.bits.tag)
-  io.sim_mem.resp.target.valid     := Mux(latency.orR, latency_buf.io.deq.bits.valid, resp_buf.io.deq.valid)
-  io.sim_mem.resp.valid := io.sim_mem.resp.ready && (
-    resp_buf.io.deq.valid && latency_buf.io.deq.valid || 
-    io.sim_mem.req_cmd.ready && (!io.sim_mem.req_cmd.target.valid || io.sim_mem.req_cmd.target.bits.rw))
-  latency_buf.io.deq.ready := latency_buf.io.deq.valid && io.sim_mem.resp.valid && latency.orR && counter === latency
+  req_data_buf.io.enq.bits         <> io.sim_mem.req_data.target.bits
+  req_data_buf.io.enq.valid        := io.sim_mem.req_data.target.fire() && io.sim_mem.req_data.ready
+  io.sim_mem.req_data.target.ready := req_data_buf.io.enq.ready
+  io.sim_mem.req_data.ready        := io.sim_mem.req_cmd.ready && pipe_rdy
 
-  latency_buf.io.enq.bits.bits.data := resp_buf.io.deq.bits.data
-  latency_buf.io.enq.bits.bits.tag  := resp_buf.io.deq.bits.tag
-  latency_buf.io.enq.bits.valid     := resp_buf.io.deq.valid
-  latency_buf.io.enq.valid := io.sim_mem.resp.valid && latency_buf.io.deq.valid && latency.orR || counter =/= latency
-  resp_buf.io.deq.ready    := io.sim_mem.resp.ready && io.sim_mem.resp.target.ready && (!latency.orR || counter === latency)
+  io.sim_mem.resp.target.bits.data := 
+    Mux(latency.orR, latency_buf.io.deq.bits.bits.data, resp_buf.io.deq.bits.data)
+  io.sim_mem.resp.target.bits.tag := 
+    Mux(latency.orR, latency_buf.io.deq.bits.bits.tag, resp_buf.io.deq.bits.tag)
+  io.sim_mem.resp.target.valid := 
+    Mux(latency.orR, latency_buf.io.deq.bits.valid, resp_buf.io.deq.valid)
+  io.sim_mem.resp.valid := io.sim_mem.resp.ready && (beat_wrap ||
+    io.sim_mem.req_cmd.ready && (!io.sim_mem.req_cmd.target.fire() || io.sim_mem.req_cmd.target.bits.rw))
+  latency_buf.io.deq.ready := io.sim_mem.resp.valid && (
+    io.sim_mem.resp.target.ready || !latency_buf.io.deq.bits.valid) && pipe_rdy
+
+  latency_buf.io.enq.valid      := latency_buf.io.deq.ready || counter =/= latency
+  latency_buf.io.enq.bits.bits  <> resp_buf.io.deq.bits
+  latency_buf.io.enq.bits.valid := resp_buf.io.deq.valid && pipe_rdy
+  resp_buf.io.deq.ready := 
+    Mux(latency.orR, latency_buf.io.deq.fire(), io.sim_mem.resp.ready && io.sim_mem.resp.target.fire())
 
   io.host_mem.req_cmd  <> req_cmd_buf.io.deq
   io.host_mem.req_data <> req_data_buf.io.deq
