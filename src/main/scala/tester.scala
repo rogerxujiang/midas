@@ -383,12 +383,12 @@ abstract class NastiShimTester[+T <: NastiShim[SimNetwork]](c: T,
     }
   } 
 
-  case class MemWriteInfo(aw: Int, len: Int, size: Int, k: Int)
+  case class MemWriteInfo(id: Int, aw: Int, len: Int, size: Int, k: Int)
   private var wr_info: Option[MemWriteInfo] = None
   private def tickMem {
     addEvent(new MuteEvent())
     wr_info match {
-      case Some(MemWriteInfo(aw, len, size, k)) if _peek(c.io.slave.w.valid) =>
+      case Some(MemWriteInfo(id, aw, len, size, k)) if _peek(c.io.slave.w.valid) =>
         // handle write data
         val data = _peek(c.io.slave.w.bits.data)
         addEvent(new NastiWriteEvent(aw+k*size, data))
@@ -396,9 +396,20 @@ abstract class NastiShimTester[+T <: NastiShim[SimNetwork]](c: T,
         _poke(c.io.slave.w.ready, 1)
         val last = _peek(c.io.slave.w.bits.last)
         takeStep
-        _poke(c.io.slave.w.ready, 0)
         assert(k < len || last != 0 && k == len)
-        wr_info = if (last) None else Some(new MemWriteInfo(aw, len, size, k+1))
+        _poke(c.io.slave.w.ready, 0)
+        _poke(c.io.slave.b.bits.id, id)
+        _poke(c.io.slave.b.bits.resp, 0)
+        _poke(c.io.slave.b.bits.user, 0)
+        if (last) {
+          _poke(c.io.slave.b.valid, 1)
+          takeStep
+          _poke(c.io.slave.b.valid, 0)
+          wr_info = None
+        } else {
+          _poke(c.io.slave.b.valid, 0)
+          wr_info = Some(new MemWriteInfo(id, aw, len, size, k+1))
+        }
       case None if _peek(c.io.slave.ar.valid) =>
         // handle read address
         val ar = _peek(c.io.slave.ar.bits.addr).toInt & 0xffffff
@@ -415,7 +426,7 @@ abstract class NastiShimTester[+T <: NastiShim[SimNetwork]](c: T,
           addEvent(new NastiReadEvent(ar+k*size, data))
           _poke(c.io.slave.r.bits.data, data)
           _poke(c.io.slave.r.bits.id, tag)
-          _poke(c.io.slave.r.bits.last, 1)
+          _poke(c.io.slave.r.bits.last, if (k == len) 1 else 0)
           _poke(c.io.slave.r.valid, 1)
           do { takeStep } while (!_peek(c.io.slave.r.ready))
           _poke(c.io.slave.r.bits.last, 0)
@@ -424,6 +435,7 @@ abstract class NastiShimTester[+T <: NastiShim[SimNetwork]](c: T,
       case None if _peek(c.io.slave.aw.valid) =>
         // handle write address
         wr_info = Some(new MemWriteInfo(
+          _peek(c.io.slave.aw.bits.id).toInt,
           _peek(c.io.slave.ar.bits.addr).toInt & 0xffffff,
           _peek(c.io.slave.aw.bits.len).toInt,
           1 << _peek(c.io.slave.aw.bits.size).toInt, 0))
