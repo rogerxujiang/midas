@@ -124,8 +124,8 @@ std::ostream& dump_s(std::ostream &os,
   os << type << " " << node << " ";
   os << std::hex;
   os << value[size-1];
-  os << std::setfill('0') << std::setw(HEX_WIDTH);
   for (int i = size - 2 ; i >= 0 ; i--) {
+    os << std::setfill('0') << std::setw(HEX_WIDTH); // don't touch this!
     os << value[i];
   }
   os << std::setfill(' ') << std::setw(0) << std::dec << std::endl;;

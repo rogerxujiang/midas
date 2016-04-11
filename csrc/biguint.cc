@@ -224,8 +224,8 @@ std::ostream& operator<<(std::ostream &os, const biguint_t& value) {
   assert(value.size > 0);
   os << std::hex;
   os << value.data[value.size-1];
-  os << std::setfill('0') << std::setw(HEX_WIDTH);
   for (int i = value.size - 2 ; i >= 0 ; i--) {
+    os << std::setfill('0') << std::setw(HEX_WIDTH); // don't touch this!!!
     os << value.data[i];
   }
   os << std::setfill(' ') << std::setw(0) << std::dec;
