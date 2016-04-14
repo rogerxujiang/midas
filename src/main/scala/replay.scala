@@ -9,7 +9,8 @@ case class ReplayArgs(
   logFile: Option[String] = None,
   matchFile: Option[String] = None, 
   testCmd: Option[String] = Driver.testCommand, 
-  verbose: Boolean = true
+  verbose: Boolean = true,
+  prefix: Option[String] = None
 )
 class Replay[+T <: Module](c: T, args: ReplayArgs) 
     extends Tester(c, false, 16, args.testCmd, args.dumpFile) {
@@ -92,19 +93,19 @@ class Replay[+T <: Module](c: T, args: ReplayArgs)
   args.samples.zipWithIndex foreach {case (sample, i) =>
     addEvent(new ReplayStartEvent(i, sample.cycle))
     reset(5)
-    (sample fold false){
-      case (f, Step(n)) =>
-        if (f) dumpoff
+    val (_, pass) = (sample fold (false, true)){case ((forced, pass), inst) => inst match {
+      case Step(n) =>
+        if (forced) dumpoff
         step(n)
-        if (f) dumpon
-        false
-      case (f, Force(node, value)) =>
+        if (forced) dumpon
+        (false, pass)
+      case Force(node, value) =>
         addEvent(new ForceEvent(node, value))
         if (matchMap.isEmpty) pokeNode(node, value, force=true)
         else loadWires(node, value, None, true)
-        true
-      case (f, Load(node, value, off)) =>
-        assert(!f)
+        (true, pass)
+      case Load(node, value, off) =>
+        assert(!forced)
         node match {
           case mem: Mem[_] if mem.seqRead && !mem.isInline && !combRAMs(mem) => off match {
             case None =>
@@ -141,16 +142,19 @@ class Replay[+T <: Module](c: T, args: ReplayArgs)
             if (matchMap.isEmpty) pokeNode(node, value, off, false) 
             else loadWires(node, value, off, false)
         }
-        false
-      case (f, PokePort(node, value)) =>
-        assert(!f)
+        (false, pass)
+      case PokePort(node, value) =>
+        assert(!forced)
         poke(node, value)
-        false
-      case (f, ExpectPort(node, value)) =>
-        assert(!f)
-        expect(node, value)
-        false
-    }
+        (false, pass)
+      case ExpectPort(node, value) =>
+        assert(!forced)
+        (false, pass && expect(node, value))
+    }}
+    val temp = new java.io.File(s"${c.name}.saif")
+    val saif = new java.io.File(s"${args.prefix getOrElse c.name}_${i}.saif")
+    if (temp.exists) temp renameTo saif
+    if (!pass) addEvent(new DumpEvent(s"Sample #${i} Failed..."))
   }
   val endTime = System.nanoTime
   val simTime = (endTime - startTime) / 1000000000.0
