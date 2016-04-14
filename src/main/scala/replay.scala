@@ -33,6 +33,7 @@ class Replay[+T <: Module](c: T, args: ReplayArgs)
   case class ReplayStartEvent(i: Int, cycle: Long) extends Event
   case class NoMatchEvent(path: String) extends Event
   case class ForceEvent(node: Node, value: BigInt) extends Event
+  case class LoadEvent(path: String, value: BigInt) extends Event
   class ReplayObserver(file: java.io.PrintStream) extends Observer(16, file) {
     override def apply(event: Event): Unit = event match {
       case ReplayStartEvent(i, cycle) =>
@@ -41,7 +42,9 @@ class Replay[+T <: Module](c: T, args: ReplayArgs)
         noMatches += path
         file.println(s"No match for ${path}")
       case ForceEvent(node, value) =>
-        file.println(s"  FORCE ${dumpName(node)} <- ${value}")
+        file.println(s"  FORCE ${dumpName(node)} <- ${value.toString(16)}")
+      case LoadEvent(path, value) =>
+        file.println(s"  LOAD ${path} <- ${value.toString(16)}")
       case _ => super.apply(event)
     }
   }
@@ -75,7 +78,7 @@ class Replay[+T <: Module](c: T, args: ReplayArgs)
 
   def loadWires(path: String, width: Int, value: BigInt, off: Option[Int], force: Boolean) {
     def loadbit(path: String, v: BigInt, force: Boolean) = (matchMap get path) match {
-      case Some(p) => pokePath(p, v, force) case None => addEvent(new NoMatchEvent(path))
+      case Some(p) => pokePath(p, v, force) case None => // addEvent(new NoMatchEvent(path))
     }
     if (width == 1 && off == None) {
       loadbit(s"""${path}${(off map (x => s"[${x}]") getOrElse "")}""", value, force)
@@ -86,6 +89,14 @@ class Replay[+T <: Module](c: T, args: ReplayArgs)
 
   def loadWires(node: Node, value: BigInt, off: Option[Int], force: Boolean) {
     loadWires(dumpName(node), node.needWidth, value, off, force)
+  }
+
+  override def finish = {
+    sramInfo.clear
+    combRAMs.clear
+    addrRegs.clear
+    noMatches.clear
+    super.finish
   } 
 
   // Replay samples
@@ -114,19 +125,24 @@ class Replay[+T <: Module](c: T, args: ReplayArgs)
               val v = if (info.dummy == 0) value else
                 Cat(((info.cols-1) to 0 by -1) map (i => 
                 Cat(UInt(0, info.dummy), u((i+1)*info.qwidth-1, i*info.qwidth)))).litValue()
-              pokePath(s"${info.path}.O1", v)
+              val path = s"${info.path}.O1"
+              addEvent(new LoadEvent(path, v))
+              pokePath(path, v)
             case Some(p) if p < mem.n => 
               val info = sramInfo(mem)
               val u = UInt(value, mem.needWidth)
               val v = if (info.dummy == 0) value else 
                 Cat(((info.cols) to 0 by -1) map (i => 
                 Cat(UInt(0, info.dummy), u((i+1)*info.qwidth-1, i*info.qwidth)))).litValue()
-              pokePath(s"${info.path}.memory[${p}]", v)
+              val path = s"${info.path}.memory[${p}]"
+              addEvent(new LoadEvent(path, v))
+              pokePath(path, v)
             case _ => // skip
           }
           case mem: Mem[_] if mem.seqRead && !mem.isInline => off match {
             case Some(p) if p < mem.n =>
               val path = s"${dumpName(mem)}.ram"
+              addEvent(new LoadEvent(s"${path}[${p}]", value))
               if (matchMap.isEmpty) pokePath(s"${path}[${p}]", value) 
               else loadWires(path, mem.needWidth, value, off, false)
             case _ => // skip
@@ -136,9 +152,11 @@ class Replay[+T <: Module](c: T, args: ReplayArgs)
             val mem = addrRegs(reg)
             val name = if (mem.readwrites.isEmpty) "reg_R1A" else "reg_RW0A"
             val path = s"${dumpName(mem)}.${name}"
+            addEvent(new LoadEvent(path, value))
             if (matchMap.isEmpty) pokePath(path, value) 
             else loadWires(path, node.needWidth, value, off, false)
           case _ => 
+            addEvent(new LoadEvent(dumpName(node), value))
             if (matchMap.isEmpty) pokeNode(node, value, off, false) 
             else loadWires(node, value, off, false)
         }
@@ -149,12 +167,12 @@ class Replay[+T <: Module](c: T, args: ReplayArgs)
         (false, pass)
       case ExpectPort(node, value) =>
         assert(!forced)
-        (false, pass && expect(node, value))
+        (false, expect(node, value) && pass)
     }}
     val temp = new java.io.File(s"${c.name}.saif")
     val saif = new java.io.File(s"${args.prefix getOrElse c.name}_${i}.saif")
     if (temp.exists) temp renameTo saif
-    if (!pass) addEvent(new DumpEvent(s"Sample #${i} Failed..."))
+    if (!pass) addEvent(new DumpEvent(s"Sample #${i} FAILED..."))
   }
   val endTime = System.nanoTime
   val simTime = (endTime - startTime) / 1000000000.0
