@@ -92,7 +92,6 @@ class Replay[+T <: Module](c: T, args: ReplayArgs)
   val startTime = System.nanoTime
   args.samples.zipWithIndex foreach {case (sample, i) =>
     addEvent(new ReplayStartEvent(i, sample.cycle))
-    reset(5)
     val (_, pass) = (sample fold (false, true)){case ((forced, pass), inst) => inst match {
       case Step(n) =>
         if (forced) dumpoff
@@ -151,6 +150,7 @@ class Replay[+T <: Module](c: T, args: ReplayArgs)
         assert(!forced)
         (false, pass && expect(node, value))
     }}
+    reset(10)
     val temp = new java.io.File(s"${c.name}.saif")
     val saif = new java.io.File(s"${args.prefix getOrElse c.name}_${i}.saif")
     if (temp.exists) temp renameTo saif
