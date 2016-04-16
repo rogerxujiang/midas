@@ -169,11 +169,13 @@ void simif_t::finish() {
     file << *trace_ports(last_sample);
     delete last_sample;
   }
+
   if (profile) {
     double sim_time = (double) (timestamp() - sim_start_time) / 1000000.0;
-    fprintf(stdout, "Simulation Time: %.3f s, Sample Time: %.3f s, Sample Count: %d\n", 
-                    sim_time, (double) sample_time / 1000000.0, sample_count);
+    fprintf(stdout, "Simulation Time: %.3f s, Sample Time: %.3f s, ",
+                    sim_time, (double) sample_time / 1000000.0);
   }
+  fprintf(stdout, "Sample Count: %d\n", sample_count);
   // merge samples
   std::ostringstream oss;
   oss << prefix << ".sample";
