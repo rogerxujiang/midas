@@ -10,6 +10,7 @@ object transforms {
   private val daisyPins = HashMap[Module, DaisyBundle]() 
   private val comps     = HashMap[Module, List[Module]]()
   private val compsRev  = HashMap[Module, List[Module]]()
+  private val noRegScan = HashSet[Module]()
   private val noSnap    = HashSet[Module]()
 
   private val chains = Map(
@@ -46,6 +47,7 @@ object transforms {
     if (wrappers.isEmpty) { 
       Driver.backend.transforms ++= Seq(
         Driver.backend.inferAll,
+        Driver.backend.findConsumers,
         fame1Transforms,
         addDaisyChains(ChainType.Trs),
         addDaisyChains(ChainType.Regs),
@@ -93,7 +95,7 @@ object transforms {
         // TODO: Should we handle it?
     }
     chainLoop(ChainType.Trs) = 1
-    noSnap ++= collect(m)
+    noRegScan ++= collect(m)
   }
  
   def addCounter(m: Module, cond: Bool, name: String) {
@@ -104,8 +106,10 @@ object transforms {
     m.debug(cntr.getNode)
     chain += cntr.getNode
     chainLoop(ChainType.Cntr) = 1
-    noSnap += m
+    noRegScan += m
   }
+
+  def addNoSnap(m: Module) { noSnap += m }
 
   private def findSRAMRead(sram: Mem[_]) = {
     require(sram.seqRead)
@@ -148,58 +152,59 @@ object transforms {
       compsRev(w) = collectRev(t)
       def getPath(node: Node) = s"${tName}${node.chiselName stripPrefix tPath}"
       // Connect the stall signal to the register and memory writes for freezing
-      compsRev(w) foreach { m =>
-        lazy val fire = !(stalls getOrElseUpdate (m, connectStalls(m)))
-        ChainType.values foreach (chains(_) getOrElseUpdate (m, ArrayBuffer[Node]()))
-        daisyPins getOrElseUpdate (m, m.addPin(new DaisyBundle(w.daisyWidth), "io_daisy"))
+      for (m <- compsRev(w)) {
         nameMap(m.reset) = s"""${tName}${m getPathName "." stripPrefix tPath}.${m.reset.name}"""
         m.reset setName s"host__${m.reset.name}"
-        m.wires foreach {case (_, wire) => nameMap(wire) = getPath(wire)}
-        m bfs {
-          case reg: Reg =>
-            reg assignReset m.reset
-            reg assignClock Driver.implicitClock
-            reg.inputs(0) = Multiplex(Bool(reg.enableSignal) && fire, reg.updateValue, reg)
-            if (!noSnap(m)) {
-              chains(ChainType.Regs)(m) += reg
-              chainLoop(ChainType.Regs) = 1
-            }
-            nameMap(reg) = getPath(reg)
-          case mem: Mem[_] =>
-            mem assignClock Driver.implicitClock
-            mem.writeAccesses foreach (w => w.cond = Bool(w.cond) && fire)
-            if (!noSnap(m)) {
-              if (mem.seqRead) {
-                val read = findSRAMRead(mem)._2
-                chains(ChainType.Regs)(m) += read
-                chains(ChainType.SRAM)(m) += mem
-                chainLoop(ChainType.SRAM) = math.max(chainLoop(ChainType.SRAM), mem.size)
-                nameMap(read) = getPath(mem) 
-              } else if (mem.size > 16 && mem.needWidth > 32) { 
-                // handle big regfiles like srams
-                chains(ChainType.SRAM)(m) += mem
-                chainLoop(ChainType.SRAM) = math.max(chainLoop(ChainType.SRAM), mem.size)             
-              } else (0 until mem.size) map (UInt(_)) foreach {idx =>
-                val read = new MemRead(mem, idx) 
-                chains(ChainType.Regs)(m) += read
-                read.infer
+        if (!noSnap(m)) {
+          lazy val fire = !(stalls getOrElseUpdate (m, connectStalls(m)))
+          ChainType.values foreach (chains(_) getOrElseUpdate (m, ArrayBuffer[Node]()))
+          daisyPins getOrElseUpdate (m, m.addPin(new DaisyBundle(w.daisyWidth), "io_daisy"))
+          m.wires foreach {case (_, wire) => nameMap(wire) = getPath(wire)}
+          m bfs {
+            case reg: Reg if !reg.inputs.isEmpty && !reg.consumers.isEmpty =>
+              reg assignReset m.reset
+              reg assignClock Driver.implicitClock
+              reg.inputs(0) = Multiplex(Bool(reg.enableSignal) && fire, reg.updateValue, reg)
+              if (!noRegScan(m)) {
+                chains(ChainType.Regs)(m) += reg
+                chainLoop(ChainType.Regs) = 1
               }
-            }
-            nameMap(mem) = getPath(mem)
-          case assert: Assert =>
-            assert assignClock Driver.implicitClock
-            assert.cond = Bool(assert.cond) || (stalls getOrElseUpdate (m, connectStalls(m)))
-            m.debug(assert.cond)
-          case printf: Printf =>
-            printf assignClock Driver.implicitClock
-            printf.cond = Bool(printf.cond) && fire
-            m.debug(printf.cond)
-          case delay: Delay =>
-            delay assignClock Driver.implicitClock
-          case _ =>
+              nameMap(reg) = getPath(reg)
+            case mem: Mem[_] if !mem.inputs.isEmpty && !mem.consumers.isEmpty =>
+              mem assignClock Driver.implicitClock
+              mem.writeAccesses foreach (w => w.cond = Bool(w.cond) && fire)
+              if (!noRegScan(m)) {
+                if (mem.seqRead) {
+                  val read = findSRAMRead(mem)._2
+                  chains(ChainType.Regs)(m) += read
+                  chains(ChainType.SRAM)(m) += mem
+                  chainLoop(ChainType.SRAM) = math.max(chainLoop(ChainType.SRAM), mem.size)
+                  nameMap(read) = getPath(mem) 
+                } else if (mem.size > 16 && mem.needWidth > 32) { 
+                  // handle big regfiles like srams
+                  chains(ChainType.SRAM)(m) += mem
+                  chainLoop(ChainType.SRAM) = math.max(chainLoop(ChainType.SRAM), mem.size) 
+                } else (0 until mem.size) map (UInt(_)) foreach {idx =>
+                  val read = new MemRead(mem, idx) 
+                  chains(ChainType.Regs)(m) += read
+                  read.infer
+                }
+              }
+              nameMap(mem) = getPath(mem)
+            case assert: Assert =>
+              assert assignClock Driver.implicitClock
+              assert.cond = Bool(assert.cond) || (stalls getOrElseUpdate (m, connectStalls(m)))
+              m.debug(assert.cond)
+            case printf: Printf =>
+              printf assignClock Driver.implicitClock
+              printf.cond = Bool(printf.cond) && fire
+              m.debug(printf.cond)
+            case delay: Delay =>
+              delay assignClock Driver.implicitClock
+            case _ =>
+          }
+          if (!chains(ChainType.SRAM)(m).isEmpty) connectSRAMRestart(m)
         }
-
-        if (!chains(ChainType.SRAM)(m).isEmpty) connectSRAMRestart(m)
       }
     }
   }
@@ -286,7 +291,7 @@ object transforms {
       chain
     }
 
-    for (w <- wrappers ; m <- comps(w)) {
+    for (w <- wrappers ; m <- comps(w) ; if !noSnap(m)) {
       val daisy = chainType match {
         case ChainType.SRAM => insertSRAMChain(m, w.daisyWidth)
         case _              => insertRegChain(m, w.daisyWidth)
@@ -357,7 +362,7 @@ object transforms {
     }
 
     ChainType.values.toList foreach { t =>
-      for (w <- wrappers ; m <- compsRev(w)) {
+      for (w <- wrappers ; m <- compsRev(w) ; if !noSnap(m)) {
         val (cw, dw) = (chains(t)(m) foldLeft (0, 0)){case ((chainWidth, dataWidth), elem) =>
           val width = elem.needWidth
           val dw = dataWidth + width
