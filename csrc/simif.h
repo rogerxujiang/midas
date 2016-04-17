@@ -50,6 +50,7 @@ class simif_t
     uint32_t peek_map[PEEK_SIZE];
 
     // sample information
+    sample_t** samples;
     size_t sample_num;
     size_t last_sample_id;
     sample_t* last_sample;

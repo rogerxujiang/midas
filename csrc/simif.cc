@@ -157,15 +157,18 @@ void simif_t::init() {
     if (arg.find("+profile") == 0) profile = true;
   }
 
+  samples = new sample_t*[sample_num];
+  for (size_t i = 0 ; i < sample_num ; i++) {
+     samples[i] = NULL;
+  }
   if (profile) sim_start_time = timestamp();
 }
 
 void simif_t::finish() {
   // tail samples
   if (last_sample != NULL) {
-    std::ostringstream oss;
-    oss << prefix << "_" << last_sample_id << ".sample";
-    std::ofstream file(oss.str().c_str());
+    std::string filename = prefix + "_" + std::to_string(last_sample_id) + ".sample";
+    std::ofstream file(filename.c_str());
     file << *trace_ports(last_sample);
     delete last_sample;
   }
@@ -176,22 +179,25 @@ void simif_t::finish() {
                     sim_time, (double) sample_time / 1000000.0);
   }
   fprintf(stdout, "Sample Count: %d\n", sample_count);
-  // merge samples
-  std::ostringstream oss;
-  oss << prefix << ".sample";
-  std::ofstream out(oss.str().c_str());
-  for (size_t i = 0 ; i < sample_num ; i++) {
-    std::ostringstream oss;
-    oss << prefix << "_" << i << ".sample";
-    std::ifstream f(oss.str().c_str());
-    out << f.rdbuf();
-    f.close();
-    std::remove(oss.str().c_str());
+
+  // dump samples
+  std::string filename = prefix + ".sample";
+  // std::ofstream file(filename.c_str());
+  FILE *file = fopen(filename.c_str(), "w");
+  for (size_t i = 0 ; i < SAMPLE_NUM ; i++) {
+    if (samples[i] != NULL) { 
+      // file << *samples[i];
+      samples[i]->dump(file);
+      fflush(file);
+      delete samples[i];
+    }
   }
   sample_t* snap = read_snapshot();
-  out << *snap;
+  // file << *cntr;
+  snap->dump(file);
   delete snap;
-  out.close();
+  // file.close();
+  fclose(file);
 }
 
 bool simif_t::expect(bool pass, const char *s) {
@@ -212,11 +218,8 @@ void simif_t::step(size_t n) {
       sample_count++;
       if (profile) start_time = timestamp();
       if (last_sample != NULL) {
-        std::ostringstream oss;
-        oss << prefix << "_" << last_sample_id << ".sample";
-        std::ofstream file(oss.str().c_str());
-        file << *trace_ports(last_sample);
-        delete last_sample;
+        if (samples[last_sample_id] != NULL) delete samples[last_sample_id];
+        samples[last_sample_id] = trace_ports(last_sample);
       }
       last_sample = read_snapshot();
       last_sample_id = sample_id;
