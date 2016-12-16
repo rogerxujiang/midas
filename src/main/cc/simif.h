@@ -31,21 +31,22 @@ class simif_t
     time_t seed; 
     size_t tracelen;
     virtual void load_mem(std::string filename);
-    inline void take_steps(size_t n) {
-      write(EMULATIONMASTER_STEP, n);
-      while(!read(EMULATIONMASTER_DONE));
+    inline void take_steps(size_t n, bool blocking) {
+      write(MASTER(STEP), n);
+      if (blocking) while(!done());
     }
-
-  protected:
-    // channel communication
-    virtual void write(size_t addr, uint32_t data) = 0;
-    virtual uint32_t read(size_t addr) = 0;
 
   public:
     // Simulation APIs
     virtual void init(int argc, char** argv, bool log = false);
     virtual int finish();
-    void step(int n);
+    virtual void step(int n, bool blocking = true);
+    inline bool done() { return read(MASTER(DONE)); }
+
+    // Widget communication
+    virtual void write(size_t addr, uint32_t data) = 0;
+    virtual uint32_t read(size_t addr) = 0;
+
 
     inline void poke(size_t id, uint32_t value) { 
       if (log) fprintf(stderr, "* POKE %s.%s <- 0x%x *\n", TARGET_NAME, INPUT_NAMES[id], value);
@@ -101,20 +102,24 @@ class simif_t
     // A default reset scheme that pulses the global chisel reset
     void target_reset(int pulse_start = 1, int pulse_length = 5);
 
-    inline biguint_t read_mem(size_t addr) {
+    inline void read_mem(size_t addr, biguint_t& data) {
+#ifdef LOADMEM
       write(LOADMEM_R_ADDRESS, addr);
       uint32_t d[MEM_DATA_CHUNK];
       for (size_t off = 0 ; off < MEM_DATA_CHUNK; off++) {
         d[off] = read(LOADMEM_R_DATA);
       }
-      return biguint_t(d, MEM_DATA_CHUNK);
+      data = biguint_t(d, MEM_DATA_CHUNK);
+#endif
     }
 
     inline void write_mem(size_t addr, biguint_t& data) {
+#ifdef LOADMEM
       write(LOADMEM_W_ADDRESS, addr);
       for (size_t off = 0; off < MEM_DATA_CHUNK; off++) {
         write(LOADMEM_W_DATA, data[off]);
       }
+#endif
     }
     
     inline uint64_t cycles() { return t; }
