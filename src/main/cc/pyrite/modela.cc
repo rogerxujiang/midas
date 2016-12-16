@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
   // Create Models
   ModelA* m1 = new ModelA("Model 1", 1);
   ModelA* m2 = new ModelA("Model 2", 2);
-  vector<SWModel*> models = {m1, m2};
+  std::vector<SWModel*> models = {m1, m2};
   cout << "models created!" << endl;
 
   // Connect

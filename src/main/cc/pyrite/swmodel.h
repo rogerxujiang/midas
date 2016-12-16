@@ -6,8 +6,6 @@
 #include <cstdint>
 #include <assert.h>
 
-using namespace std;
-
 // Interfaces for the ports of models. Required to as to left the SWModels
 // iterate through there input and output points and remaining agnostic
 // to their type paramterization
@@ -27,7 +25,7 @@ class Enqueuer {
 template <typename T> class OutputPort;
 template <typename T> class InputPort: public Dequeuer {
   private:
-    queue<T>* channel_deq = nullptr;
+    std::queue<T>* channel_deq = nullptr;
 
   public:
     InputPort(){};
@@ -39,9 +37,9 @@ template <typename T> class InputPort: public Dequeuer {
 
     // Binds an output port to an input port, returning a ptr to the connecting
     // queue
-    queue<T>* connect(OutputPort<T>& that) {
+    std::queue<T>* connect(OutputPort<T>& that) {
       assert(channel_deq == nullptr);
-      auto q = new queue<T>();
+      auto q = new std::queue<T>();
       that.channel_enqs.push_back(q);
       channel_deq = q;
       return q;
@@ -67,7 +65,7 @@ template <typename T> class OutputPort: public Enqueuer {
   friend class InputPort<T>;
   private:
     // This is a vector to allow the fanout of tokens to multiple consumers.
-    vector<queue<T>*> channel_enqs;
+    std::vector<std::queue<T>*> channel_enqs;
 
   public:
     OutputPort(){};
@@ -86,9 +84,9 @@ template <typename T> class OutputPort: public Enqueuer {
 
 class SWModel {
   private:
-    size_t cycle = 0;
-    vector<Dequeuer*> ins;
-    vector<Enqueuer*> outs;
+    std::size_t cycle = 0;
+    std::vector<Dequeuer*> ins;
+    std::vector<Enqueuer*> outs;
 
   protected:
     // The work function of the model. Called when all input tokens are available
@@ -98,7 +96,7 @@ class SWModel {
   public:
     // The method the simulation environment uses to try and advance the model
     bool try_tick();
-    size_t get_cycle(void) { return cycle; };
+    std::size_t get_cycle(void) { return cycle; };
 };
 
 #endif // __SWMODEL_H

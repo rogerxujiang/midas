@@ -1,7 +1,5 @@
 #include "swmodel.h"
 
-using namespace std;
-
 bool SWModel::try_tick() {
   bool inputs_valid = true;
   for (auto& in: ins) {
