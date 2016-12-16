@@ -1,5 +1,6 @@
 #include <iostream>
 #include <queue>
+#include <tuple>
 #include <vector>
 #include <cstdint>
 #include <stdio.h>
@@ -21,27 +22,24 @@ class ModelA : public SWModel {
       // Admittedtly, this is a pretty big wart... We shouldn't do this in
       // child class' constructor if would be nice if it was just done
       // implicitly
-      register_port(&in);
-      register_port(&out);
+      register_port(&interface);
       register_port(&reset);
     }
     ModelA(const ModelA&) = delete; // no copy
 
     // Port definitions
-    InputPort<uint64_t> in;
+    BidirPort<uint64_t, uint64_t> interface;
     InputPort<bool> reset;
-    OutputPort<uint64_t> out;
 
     bool tick(void) {
       cout << "Ticking " << name << endl;
-      uint64_t input = in.bits;
       if (!reset.bits) {
-        cout << "  Got input " << input << "!\n";
-        out.bits = input + incAmt;
-        cout << "  Pushing output " << out.bits << "!\n";
+        cout << "  Got input " << interface.in.bits << "!\n";
+        interface.out.bits = interface.in.bits + incAmt;
+        cout << "  Pushing output " << interface.out.bits << "!\n";
       } else {
         cout << "  Held in reset" << endl;
-        out.bits = 0;
+        interface.out.bits = 0;
       }
       return true;
     }
@@ -61,16 +59,15 @@ int main(int argc, char** argv) {
   cout << "models created!" << endl;
 
   // Connect
-  auto m1enq = m1->in.connect(m2->out);
+  auto channel = m1->interface.biconnect(m2->interface);
   auto m1reset = m1->reset.connect(resetter->reset);
-  auto m2enq = m2->in.connect(m1->out);
   auto m2reset = m2->reset.connect(resetter->reset);
 
   cout << "models connected!" << endl;
 
   // Start with a number
-  m1enq->push(1L);
-  m2enq->push(0L);
+  get<0>(channel)->push(1L);
+  get<1>(channel)->push(0L);
   m1reset->push(true);
   m2reset->push(true);
   cout << "initial tokens pushed!" << endl;

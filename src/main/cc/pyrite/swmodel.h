@@ -3,6 +3,7 @@
 
 #include <queue>
 #include <vector>
+#include <tuple>
 #include <cstdint>
 #include <assert.h>
 
@@ -19,6 +20,8 @@ class Enqueuer {
   public:
     virtual void enq_data(void) = 0;
 };
+
+class Bidir: public Enqueuer, public Dequeuer { };
 
 // Forward declaration of OutputPort so as to define the connect operator
 // in the InputPort
@@ -82,6 +85,23 @@ template <typename T> class OutputPort: public Enqueuer {
     }
 };
 
+template <typename O, typename I>
+class BidirPort : public Bidir {
+  public:
+    OutputPort<O> out;
+    InputPort<I> in;
+
+    std::tuple<std::queue<I>*, std::queue<O>*> biconnect(BidirPort<I,O>& that) {
+      auto enq = in.connect(that.out);
+      auto deq = that.in.connect(out);
+      return std::make_tuple(enq, deq);
+    }
+
+    void enq_data() { out.enq_data(); };
+    void deq_data() { in.deq_data(); };
+    bool data_valid() { return in.data_valid(); };
+};
+
 class SWModel {
   private:
     std::size_t cycle = 0;
@@ -93,6 +113,7 @@ class SWModel {
     virtual bool tick(void) = 0;
     void register_port(Dequeuer* in) { ins.push_back(in); };
     void register_port(Enqueuer* out) { outs.push_back(out); };
+    void register_port(Bidir* test) { ins.push_back(test); outs.push_back(test); }
   public:
     // The method the simulation environment uses to try and advance the model
     bool try_tick();
