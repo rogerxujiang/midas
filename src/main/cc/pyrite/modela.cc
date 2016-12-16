@@ -1,12 +1,11 @@
-
 #include <iostream>
 #include <queue>
 #include <vector>
 #include <cstdint>
 #include <stdio.h>
-#include "swmodel.h"
 #include <string>
-#include <algorithm>
+
+#include "swmodel.h"
 
 using namespace std;
 
@@ -16,78 +15,61 @@ class ModelA : public SWModel {
     long incAmt;
 
   public:
-    ModelA(string _name, long _incAmt) {
-      name = _name;
-      incAmt = _incAmt;
+    ModelA(string _name, long _incAmt) : name(_name), incAmt(_incAmt) {
       std::cout << "Creating ModelA named " << name << "!\n";
+      // Admittedtly, this is a pretty big wart... We shouldn't do this in
+      // child class' constructor if would be nice if it was just done
+      // implicitly
+      register_port(&in);
+      register_port(&out);
     }
     ModelA(const ModelA&) = delete; // no copy
 
+    // Port definitions
+    InputPort<uint64_t> in;
+    OutputPort<uint64_t> out;
+
     bool tick(void) {
       cout << "Ticking " << name << endl;
-      if (inputChannel->size() > 0) {
-        cout << "  Something in the input channel!" << endl;
-        uint64_t input = inputChannel->front();
-        inputChannel->pop(); // remove
-        cout << "  Got input " << input << "!\n";
-        outputChannel->push(input + incAmt);
-        return true;
-      }
-      cout << "  Nothing in input queue!" << endl;
-      return false;
-    }
-};
-
-// TODO better name
-// Simple wrapper for models to include ticked
-class ModelEntry {
-  public:
-    SWModel* model;
-    bool ticked = false;
-
-    ModelEntry(SWModel* _model) {
-      model = _model;
+      uint64_t input = in.bits;
+      cout << "  Got input " << input << "!\n";
+      out.bits = input + incAmt;
+      cout << "  Pushing output " << out.bits << "!\n";
+      return true;
     }
 };
 
 int main(int argc, char** argv) {
   printf("Hello World!\n");
 
-  long runtime = 10;
+  size_t runtime = 10;
 
   // Create Models
-  vector<ModelEntry*> models;
-  models.push_back(new ModelEntry(new ModelA("Model 1", 1)));
-  models.push_back(new ModelEntry(new ModelA("Model 2", 2)));
+  ModelA* m1 = new ModelA("Model 1", 1);
+  ModelA* m2 = new ModelA("Model 2", 2);
+  vector<SWModel*> models = {m1, m2};
   cout << "models created!" << endl;
 
   // Connect
-  models[0]->model->connect(models[1]->model);
-  models[1]->model->connect(models[0]->model);
+  auto m1enq = m1->in.connect(m2->out);
+  auto m2enq = m2->in.connect(m1->out);
+
   cout << "models connected!" << endl;
 
   // Start with a number
-  models[0]->model->inputChannel->push(1L);
-  models[1]->model->inputChannel->push(3L);
+  m1enq->push(1L);
+  m2enq->push(0L);
   cout << "initial tokens pushed!" << endl;
 
+  bool done = 0;
   // Simulation loop
-  for (auto i = 0; i < runtime; i++) {
-    cout << " ***** Cycle " << i << " *****" << endl;
-
-    // Start with no one ticked
-    for_each(models.begin(), models.end(), [](ModelEntry* e){e->ticked = false;});
-    cout << "ticked all set to false" << endl;
-
-    // While not everyone has ticked, keep trying
-    // In degenerate shared memory all SW models case, everyone will tick first try
-    while (!all_of(models.begin(), models.end(), [](ModelEntry* e){return e->ticked;})) {
-      cout << "someone hasn't ticked yet!" << endl;
-      for_each(models.begin(), models.end(), [](ModelEntry* e){
-        if (!e->ticked) { // Don't tick if you've already ticked this cycle;
-          e->ticked = e->model->tick();
-        }
-      });
+  while (!done) {
+    done = true;
+    for(auto& model: models) {
+      if (model->get_cycle() < runtime) {
+        model->try_tick();
+        done = false;
+      }
     }
   }
 
