@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
   ModelA* m1 = new ModelA("Model 1", 1);
   ModelA* m2 = new ModelA("Model 2", 2);
   ResetModel * resetter = new ResetModel(0, 2);
-  
+
   std::vector<SWModel*> models = {m1, m2, resetter};
   cout << "models created!" << endl;
 
