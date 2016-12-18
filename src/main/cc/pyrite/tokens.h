@@ -65,6 +65,7 @@ class AXI4MToken: public MidasToken {
     
 
     AXI4MToken(int addrWidth, int dataWidth, int idWidth) : addrWidth{addrWidth}, dataWidth{dataWidth}, idWidth{idWidth} {};
+    AXI4MToken() {};
     ~AXI4MToken() {};
     int get_addrWidth(void){ return addrWidth; };
     int get_dataWidth(void){ return dataWidth; };
@@ -112,6 +113,7 @@ class AXI4SToken: public MidasToken {
     
 
     AXI4SToken(int dataWidth, int idWidth) : dataWidth{dataWidth}, idWidth{idWidth} {};
+    AXI4SToken() {};
     ~AXI4SToken() {};
     int get_dataWidth(void){ return dataWidth; };
     int get_idWidth(void){ return idWidth; };

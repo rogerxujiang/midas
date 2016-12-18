@@ -117,6 +117,7 @@ object TokenUtils {
       val argList = tokenParams map { "int " ++ _ } mkString(", ")
       val initializerList = tokenParams map { name => s"$name{$name}" } mkString(", ")
       sb.appendln("%s(%s) : %s {};".format(token.cName, argList, initializerList))
+      sb.appendln("%s() {};".format(token.cName))
     }
     def genDestructor(): Unit = {
       sb.appendln("~%s() {};".format(token.cName))

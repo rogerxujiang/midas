@@ -1,5 +1,6 @@
 base_dir = $(abspath .)
 util_dir = $(base_dir)/utils
+dramsim_dir=$(base_dir)/dramsim2
 v_dir = $(abspath ../verilog)
 r_dir = $(abspath ../resources)
 
