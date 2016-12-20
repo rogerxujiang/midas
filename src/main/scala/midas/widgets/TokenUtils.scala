@@ -18,6 +18,8 @@ trait MidasToken {
       field.setAccessible(true)
       (field.getName -> field.get(this))
     }).sortWith { _._1 < _._1}
+
+  def getFieldNames() = getFields.unzip._1
 }
 
 trait AXI4Token extends MidasToken {
@@ -30,31 +32,31 @@ case class AXI4MToken(idWidth: Int, addrWidth: Int, dataWidth: Int) extends AXI4
 
 object TokenFactory {
 
-  def tokenizeAXI4(b: AXI4Bundle): (AXI4Token, AXI4Token) = {
+  def tokenizeAXI4(b: AXI4Bundle): (Option[AXI4Token], Option[AXI4Token]) = {
       val idWidth = b.ar.bits.id.getWidth
       val addrWidth = b.ar.bits.addr.getWidth
       val dataWidth = b.r.bits.data.getWidth
-      val mToken = AXI4MToken(idWidth, addrWidth, dataWidth)
-      val sToken = AXI4SToken(idWidth, dataWidth)
+      val mToken = Some(AXI4MToken(idWidth, addrWidth, dataWidth))
+      val sToken = Some(AXI4SToken(idWidth, dataWidth))
       if (b.aw.valid.dir == Direction.Output) (mToken, sToken) else (sToken, mToken)
     }
 
-  def tokenizeAXI4(b: NastiIO): (AXI4Token, AXI4Token) = {
+  def tokenizeAXI4(b: NastiIO): (Option[AXI4Token], Option[AXI4Token]) = {
       val idWidth = b.ar.bits.id.getWidth
       val addrWidth = b.ar.bits.addr.getWidth
       val dataWidth = b.r.bits.data.getWidth
-      val mToken = AXI4MToken(idWidth, addrWidth, dataWidth)
-      val sToken = AXI4SToken(idWidth, dataWidth)
+      val mToken = Some(AXI4MToken(idWidth, addrWidth, dataWidth))
+      val sToken = Some(AXI4SToken(idWidth, dataWidth))
       if (b.aw.valid.dir == Direction.Output) (mToken, sToken) else (sToken, mToken)
     }
 
-  def apply[T <: Bundle](b: T): (MidasToken, MidasToken) = b match {
+  def apply[T <: Data](b: T): (Option[MidasToken], Option[MidasToken]) = b match {
     case b: NastiIO => tokenizeAXI4(b)
     case b: AXI4Bundle => tokenizeAXI4(b)
     case _ => throw new RuntimeException("Unsupported bundle type: " ++ b.getClass.getName)
   }
 
-  def apply[T <: Bundle](b: T, desiredDir: Direction): MidasToken =
+  def apply[T <: Data](b: T, desiredDir: Direction): Option[MidasToken] =
     if (desiredDir == Direction.Output) apply(b)._1 else apply(b)._2
 }
 
@@ -87,15 +89,12 @@ object TokenUtils {
 
   // This function emits a CPP class that encodes a Chisel type
   // used to automate the generate of the intial token definitions
-  def genTokenType(bundle: Bundle, desiredDir: Direction): String =  {
+  def genTokenTypes(bundle: Bundle): String =  {
     val sb = new CStringBuilder
     val bundleTypeSuffix = "_b"
-    val token = TokenFactory(bundle, desiredDir)
-    // Private members that indicate the width of variable width fields
-    val tokenParams = token.getFields.unzip._1
-   
+
     // Recurses down the bundle creating structs for every new bundle encountered and instantiating storage types for all elements
-    def genInnerType(name: String, value: Data): Unit = value match {
+    def genInnerType(name: String, value: Data, desiredDir: Direction): Unit = value match {
       case e: Element => if (e.dir == desiredDir) {
         sb.appendln("%s %s;".format(getStorageType(e), name))
       }
@@ -103,7 +102,7 @@ object TokenUtils {
         if (hasElementsOfDesiredDirection(b, desiredDir)) {
           sb.appendln(s"struct ${name}${bundleTypeSuffix} {")
           sb.indent()
-          b.elements foreach { case (name, value) => genInnerType(name, value)}
+          b.elements foreach { case (name, value) => genInnerType(name, value, desiredDir)}
           sb.unindent()
           sb.appendln("};")
           sb.appendln(s"${name}${bundleTypeSuffix} ${name};")
@@ -113,44 +112,45 @@ object TokenUtils {
       case _ => throw new RuntimeException("Unrecognized chisel type")
     }
 
-    def genConstructor(): Unit = {
-      val argList = tokenParams map { "int " ++ _ } mkString(", ")
-      val initializerList = tokenParams map { name => s"$name{$name}" } mkString(", ")
+    def genConstructor(token: MidasToken): Unit = {
+      val argList = token.getFieldNames map { "int " ++ _ } mkString(", ")
+      val initializerList = token.getFieldNames map { name => s"$name{$name}" } mkString(", ")
       sb.appendln("%s(%s) : %s {};".format(token.cName, argList, initializerList))
       sb.appendln("%s() {};".format(token.cName))
     }
-    def genDestructor(): Unit = {
+    def genDestructor(token: MidasToken): Unit = {
       sb.appendln("~%s() {};".format(token.cName))
     }
 
-    def genGetters(): Unit = {
-      tokenParams foreach { field => sb.appendln("int get_%s(void){ return %s; };".format(field, field)) }
+    def genGetters(token: MidasToken): Unit = {
+      token.getFieldNames foreach { field => sb.appendln("int get_%s(void){ return %s; };".format(field, field)) }
     }
 
-    sb.appendln("class %s: public MidasToken {".format(token.cName))
-    sb.indent()
-    sb.appendln("private:")
-    sb.indent()
-    tokenParams foreach { param => sb.appendln("int %s;".format(param)) }
-    sb.append("\n")
-    sb.unindent()
-    sb.appendln("public:")
-    sb.indent()
-    // Generate the data fields
-    bundle.elements foreach { case (name: String, value: Data) => genInnerType(name, value) }
-    // Generate public methods
-    sb.appendln("\n")
-    genConstructor
-    genDestructor
-    genGetters()
-    sb.unindent(2)
-    sb.appendln("};\n")
-    sb.toString
-  }
+    def buildClass(token: MidasToken, dir: Direction): Unit = {
+      sb.appendln("class %s: public MidasToken {".format(token.cName))
+      sb.indent()
+      sb.appendln("private:")
+      sb.indent()
+      token.getFieldNames foreach { field => sb.appendln("int %s;".format(field)) }
+      sb.append("\n")
+      sb.unindent()
+      sb.appendln("public:")
+      sb.indent()
+      // Generate the data fields
+      bundle.elements foreach { case (name: String, value: Data) => genInnerType(name, value, dir) }
+      // Generate public methods
+      sb.appendln("\n")
+      genConstructor(token)
+      genDestructor(token)
+      genGetters(token)
+      sb.unindent(2)
+      sb.appendln("};\n")
+    }
 
-  def writeTokenTypesToFile(fw: PrintWriter, bundle: Bundle): Unit = {
-    fw.write(genTokenType(bundle, Direction.Output))
-    fw.write(genTokenType(bundle, Direction.Input))
+    val (oToken, iToken) = TokenFactory(bundle)
+    iToken.foreach(buildClass(_, Direction.Input))
+    oToken.foreach(buildClass(_, Direction.Output))
+    sb.toString
   }
 
   // A higher order recursive function, that recurses down a bundle and applies
@@ -164,13 +164,14 @@ object TokenUtils {
   }
 
   // Given a bundle, this method generates a C function to unpack an array
-  // into a token aka. fromBits()
+  // into a token aka. fromBits(). Returns "" if there are no elements driven
+  // in the desired direction
   def genFromBits(name: String, bundle: Bundle, desiredDir: Direction): String = {
     // This var stores our position within the bitpack
     // Since elements are stored in reverse order we need to start from the MSB
     var offset = getTokenWidth(bundle, desiredDir) - 1
-    val token = TokenFactory(bundle, desiredDir)
     val sb = new CStringBuilder
+    val bitStorageType = "biguint_t&"
 
     // Initalizes a leaf field of the C++ token, bumping the offset as the traversal procedes
     def unpackElement(bundleHier: Seq[String], element: Element): Unit = {
@@ -193,17 +194,19 @@ object TokenUtils {
 
     def unpackElements(bundle: Bundle) = traverseBundle(Seq(), bundle)(unpackElement)
 
-    val bitStorageType = "biguint_t&"
-    val constructorArgs = token.getFields.unzip._2.mkString(", ")
+    def gen(token: MidasToken) {
+      val constructorArgs = token.getFields.unzip._2.mkString(", ")
+      sb.appendln("%s* %s_fromBits(%s bits) {".format(token.cName, name, bitStorageType))
+      sb.indent()
+      sb.appendln("%s* token = new %s(%s);".format(token.cName, token.cName, constructorArgs))
+      unpackElements(bundle)
+      sb.appendln("return token;")
+      sb.unindent()
+      sb.appendln("};")
+    }
 
-    // Now generate the factory function
-    sb.appendln("%s* %s_fromBits(%s bits) {".format(token.cName, name, bitStorageType))
-    sb.indent()
-    sb.appendln("%s* token = new %s(%s);".format(token.cName, token.cName, constructorArgs))
-    unpackElements(bundle)
-    sb.appendln("return token;")
-    sb.unindent()
-    sb.appendln("};")
+    val token: Option[MidasToken] = TokenFactory(bundle, desiredDir)
+    token.foreach(gen(_))
     sb.toString
   }
 
@@ -211,7 +214,7 @@ object TokenUtils {
   def genToBits(name: String, bundle: Bundle, desiredDir: Direction): String = {
     var offset = getTokenWidth(bundle, desiredDir) - 1
     val sb = new CStringBuilder
-    val token = TokenFactory(bundle, desiredDir)
+    val numWords = offset/32 + 1
 
     def packElement(bundleHier: Seq[String], element: Element): Unit = {
       if (element.dir == desiredDir) {
@@ -225,24 +228,28 @@ object TokenUtils {
 
     def packElements(bundle: Bundle) = traverseBundle(Seq("token"), bundle)(packElement)
 
-    val numWords = offset/32 + 1
+    def gen(token: MidasToken): Unit = {
+      sb.appendln(s"biguint_t* %s_toBits(%s& token) {".format(name, token.cName))
+      sb.indent()
+      sb.appendln("size_t num_words = %d;".format(numWords))
+      sb.appendln("uint32_t bits[num_words] = {0};")
+      sb.appendln("biguint_t * pack = new biguint_t(bits, num_words);")
+      packElements(bundle)
+      // We probably don't need to use biguint?
+      sb.appendln("return pack;")
+      sb.unindent()
+      sb.appendln("};")
+      sb.toString
+    }
 
-    sb.appendln(s"biguint_t* %s_toBits(%s& token) {".format(name, token.cName))
-    sb.indent()
-    sb.appendln("size_t num_words = %d;".format(numWords))
-    sb.appendln("uint32_t bits[num_words] = {0};")
-    sb.appendln("biguint_t * pack = new biguint_t(bits, num_words);")
-    packElements(bundle)
-    // We probably don't need to use biguint?
-    sb.appendln("return pack;")
-    sb.unindent()
-    sb.appendln("};")
+    val token: Option[MidasToken] = TokenFactory(bundle, desiredDir)
+    token.foreach(gen(_))
     sb.toString
   }
 }
 
 object TokenDefinitionGenerator extends App {
-  import TokenUtils.writeTokenTypesToFile
+  import TokenUtils.genTokenTypes
 
   class DummyContext extends Module {
     val io = IO( new Bundle {} )
@@ -253,7 +260,7 @@ object TokenDefinitionGenerator extends App {
     fw.write("#include \"biguint.h\"\n\n")
     // This is a placeholder until we figure out what we want to put here.
     fw.write("class MidasToken {};\n")
-    writeTokenTypesToFile(fw, (AXI4Bundle(AXI4BundleParameters(64, 128, 32))))
+    fw.write(genTokenTypes(AXI4Bundle(AXI4BundleParameters(64, 128, 32))))
     fw.write("#endif")
     fw.close()
   }
