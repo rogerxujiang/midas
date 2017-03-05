@@ -31,7 +31,7 @@ private[passes] class AddDaisyChains(
                             instIdx: Int = 0)
                             (implicit chainType: ChainType.Value) = {
     val chirrtl = Parser parse (chisel3.Driver emit chainGen)
-    val annotation = new Annotations.AnnotationMap(Nil)
+    val annotation = new AnnotationMap(Nil)
     val circuit = renameMods((new InlineCompiler compile (
       CircuitState(chirrtl, ChirrtlForm), new StringWriter)).circuit, namespace)
     chainMods ++= circuit.modules

@@ -128,7 +128,7 @@ private[passes] class SimulationMapping(
   def run(c: Circuit) = {
     lazy val sim = new SimWrapper(io)
     val chirrtl = Parser parse (chisel3.Driver emit (() => sim))
-    val annotations = new Annotations.AnnotationMap(Nil)
+    val annotations = new AnnotationMap(Nil)
     val writer = new StringWriter
     // val writer = new FileWriter(new File("SimWrapper.ir"))
     val circuit = renameMods((new InlineCompiler compile (
