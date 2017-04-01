@@ -20,7 +20,7 @@ class WireChannel(val w: Int)(implicit p: Parameters) extends Module {
   val tokens = Module(new Queue(UInt(w.W), p(ChannelLen)))
   tokens.io.enq <> io.in
   io.out <> tokens.io.deq
-  if (p(EnableSnapshot)) {
+  if (/*p(EnableSnapshot)*/ false) {
     io.trace <> TraceQueue(tokens.io.deq, io.traceLen)
   } else {
     io.trace.valid := Bool(false)

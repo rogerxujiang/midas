@@ -24,7 +24,7 @@ simif_t::simif_t() {
 
 #ifdef ENABLE_SNAPSHOT
   sample_file = std::string(TARGET_NAME) + ".sample";
-  sample_num = 30; // SAMPLE_NUM;
+  sample_num = 1; // SAMPLE_NUM;
   last_sample = NULL;
   last_sample_id = 0;
   profile = false;
@@ -69,12 +69,14 @@ void simif_t::init(int argc, char** argv, bool log) {
   // Read mapping files
   sample_t::init_chains(std::string(TARGET_NAME) + ".chain");
   // flush output traces by sim reset
+  /*
   for (size_t k = 0 ; k < OUT_TR_SIZE ; k++) {
     size_t addr = OUT_TR_ADDRS[k];
     size_t chunk = OUT_TR_CHUNKS[k];
     for (size_t off = 0 ; off < chunk ; off++)
       read(addr+off);
   }
+  */
 #endif
 
   this->log = log;
@@ -124,21 +126,26 @@ void simif_t::target_reset(int pulse_start, int pulse_length) {
   poke(reset, 1);
   take_steps(pulse_length, true);
   poke(reset, 0);
+/*
 #ifdef ENABLE_SNAPSHOT
   // flush I/O traces by target resets
   trace_count = pulse_start + pulse_length;
   read_traces(NULL);
   trace_count = 0;
 #endif
+*/
 }
 
 int simif_t::finish() {
 #ifdef ENABLE_SNAPSHOT
+  /*
   // tail samples
   if (last_sample != NULL) {
     if (samples[last_sample_id] != NULL) delete samples[last_sample_id];
     samples[last_sample_id] = read_traces(last_sample);
   }
+  */
+  samples[0] = read_snapshot();
 
   // dump samples
 #if DAISY_WIDTH > 32
@@ -245,6 +252,7 @@ void simif_t::step(int n, bool blocking) {
   assert(n > 0);
 #ifdef ENABLE_SNAPSHOT
   // reservoir sampling
+  /*
   if (t % tracelen == 0) {
     midas_time_t start_time = 0;
     size_t record_id = t / tracelen;
@@ -263,6 +271,7 @@ void simif_t::step(int n, bool blocking) {
     }
   }
   if (trace_count < tracelen) trace_count += n;
+  */
 #endif
   // take steps
   if (log) fprintf(stderr, "* STEP %d -> %" PRIu64 " *\n", n, (t + n));

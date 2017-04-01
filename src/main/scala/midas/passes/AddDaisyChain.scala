@@ -66,21 +66,28 @@ private[passes] class AddDaisyChains(
     chainType match {
       // TODO: do bfs from inputs
       case ChainType.Regs => s match {
-        case s: DefRegister =>
+        case s: DefRegister if s.name == "head" || s.name == "lastCycle" || s.name == "overflow" ||
+            s.name == "GC_cycles" || s.name == "GC_insts" ||
+            s.name == "JIT_cycles" || s.name == "JIT_insts" =>
           chains += s
+        /*
         case s: DefMemory if !bigRegFile(s) =>
           chains += s
         case s: WDefInstance if seqMems contains s.module =>
           chains += s
+        */
         case _ =>
       }
       case ChainType.SRAM => s match {
-        case s: WDefInstance if seqMems contains s.module =>
+        case s: WDefInstance if (seqMems contains s.module) && (
+          s.module == "deltaTable_ext" || s.module == "valueTable_ext") =>
           chains += s
+        /*
         case s: DefMemory if bigRegFile(s) =>
           chains += s
         case s: DefMemory if s.readLatency > 0 =>
           error("${s.info}: SRAMs should be transformed to Black bloxes")
+        */
         case _ =>
       }
       case ChainType.Trace =>
@@ -146,7 +153,7 @@ private[passes] class AddDaisyChains(
     }
 
     val chainElems = new Statements
-    collect(chainType, chainElems)(m.body)
+    if (m.name == "Rocket" || m.name == "BoomCore") collect(chainType, chainElems)(m.body)
     chains(chainType)(m.name) = chainElems
     chainElems.nonEmpty match {
       case false => Nil
