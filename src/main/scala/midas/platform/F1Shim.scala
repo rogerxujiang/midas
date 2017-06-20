@@ -8,9 +8,6 @@ import chisel3.util._
 import junctions._
 import config.{Parameters, Field}
 
-case object MasterNastiKey extends Field[NastiParameters]
-case object SlaveNastiKey extends Field[NastiParameters]
-
 class F1ShimIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
   val master = Flipped(new NastiIO()(p alterPartial ({ case NastiKey => p(MasterNastiKey) })))
   val slave  = new NastiIO()(p alterPartial ({ case NastiKey => p(SlaveNastiKey) }))
