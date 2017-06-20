@@ -1,6 +1,8 @@
 #ifndef __SIMIF_H
 #define __SIMIF_H
 
+#define __STDC_FORMAT_MACROS 1
+#include <inttypes.h>
 #include <cassert>
 #include <cstring>
 #include <sstream>
