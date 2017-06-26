@@ -51,11 +51,17 @@ void simif_f1_t::write(size_t addr, uint32_t data) {
 
     // TODO: pipe comms
     //printf("HELLO WRITE addr: %x, data %x\n");
-    uint64_t cmd = ((uint64_t) 0x80000000 | addr) << 32 | (uint64_t)data;
+    uint64_t cmd = (((uint64_t)(0x80000000 | addr)) << 32) | (uint64_t)data;
     char * buf = (char*)&cmd;
     ::write(driver_to_xsim_fd, buf, 8);
     // wait for ack
-    ::read(xsim_to_driver_fd, buf, 8);
+    int gotdata = 0;
+    while (gotdata == 0) {
+        gotdata = ::read(xsim_to_driver_fd, buf, 8);
+        if (gotdata != 0 && gotdata != 8) {
+            printf("ERR GOTDATA %d\n", gotdata);
+        }
+    }
 #else
 
     rc = fpga_pci_poke(pci_bar_handle, addr >> 2, data);
@@ -73,8 +79,16 @@ uint32_t simif_f1_t::read(size_t addr) {
     uint64_t cmd = addr;
     char * buf = (char*)&cmd;
     ::write(driver_to_xsim_fd, buf, 8);
-    ::read(xsim_to_driver_fd, buf, 8);
-    return *(uint64_t*)buf;
+
+    int gotdata = 0;
+    while (gotdata == 0) {
+        gotdata = ::read(xsim_to_driver_fd, buf, 8);
+        if (gotdata != 0 && gotdata != 8) {
+            printf("ERR GOTDATA %d\n", gotdata);
+        }
+    }
+
+    return *((uint64_t*)buf);
 #else
     uint32_t value;
     rc = fpga_pci_peek(pci_bar_handle, addr >> 2, &value);
