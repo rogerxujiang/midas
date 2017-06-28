@@ -19,6 +19,8 @@ class simif_f1_t: public virtual simif_t
     virtual ~simif_f1_t();
     virtual void write(size_t addr, uint32_t data);
     virtual uint32_t read(size_t addr);
+    void check_rc(int rc, char * infostr);
+    void fpga_shutdown();
   private:
     char in_buf[MMIO_WIDTH];
     char out_buf[MMIO_WIDTH];
@@ -28,7 +30,7 @@ class simif_f1_t: public virtual simif_t
     int driver_to_xsim_fd;
     int xsim_to_driver_fd;
 #else
-    int rc;
+//    int rc;
     int slot_id;
     pci_bar_handle_t pci_bar_handle;
 #endif

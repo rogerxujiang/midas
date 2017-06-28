@@ -16,8 +16,11 @@ simif_f1_t::simif_f1_t() {
   printf("opening xsim to driver\n");
   xsim_to_driver_fd = open(xsim_to_driver, O_RDONLY);
 #else
+  fprintf(stderr, "===== FPGA setup =====\n");
+
+  int rc;
   rc = fpga_pci_init();
-  //fail_on(rc, out, "Unable to initialize the fpga_pci library");
+  check_rc(rc, "fpga_pci_init");
 
   /* This demo works with single FPGA slot, we pick slot #0 as it works for both f1.2xl and f1.16xl */
 
@@ -26,24 +29,41 @@ simif_f1_t::simif_f1_t() {
   //rc = check_afi_ready(slot_id);
   //fail_on(rc, out, "AFI not ready");
 
-  printf("===== Starting with peek_poke_example =====\n");
   pci_bar_handle = PCI_BAR_HANDLE_INIT;
   rc = fpga_pci_attach(0, FPGA_APP_PF, APP_PF_BAR0, 0, &pci_bar_handle);
-  printf("attached %d\n", rc);
+  check_rc(rc, "fpga_pci_attach");
   //fail_on(rc, out, "Unable to attach to the AFI on slot id %d", slot_id);
 
 
 #endif
 }
 
-simif_f1_t::~simif_f1_t() {
-  //f1_finish();
+void simif_f1_t::check_rc(int rc, char * infostr) {
 #ifndef SIMULATION_XSIM
-        rc = fpga_pci_detach(pci_bar_handle);
+    if (infostr) {
+        fprintf(stderr, "%s\n", infostr);
+    }
+    if (rc) {
+        fprintf(stderr, "INVALID RETCODE: %d\n", rc, infostr);
+        fpga_shutdown();
+        exit(1);
+    }
+#endif
+}
+
+void simif_f1_t::fpga_shutdown() {
+#ifndef SIMULATION_XSIM
+        int rc = fpga_pci_detach(pci_bar_handle);
+        // don't call check_rc because of fpga_shutdown call. do it manually:
         if (rc) {
-            printf("Failure while detaching from the fpga.\n");
+            fprintf(stderr, "Failure while detaching from the fpga: %d\n", rc);
         }
 #endif
+}
+
+simif_f1_t::~simif_f1_t() {
+  //f1_finish();
+    fpga_shutdown();
 }
 
 void simif_f1_t::write(size_t addr, uint32_t data) {
@@ -63,9 +83,10 @@ void simif_f1_t::write(size_t addr, uint32_t data) {
         }
     }
 #else
-
-    rc = fpga_pci_poke(pci_bar_handle, addr >> 2, data);
-    printf("writing addr: %x, data %x, rc: %x\n", addr, data, rc);
+    addr <<= 2;
+    int rc = fpga_pci_poke(pci_bar_handle, addr, data);
+//    fprintf(stderr, "writing addr: %x, data %x\n", addr, data);
+    check_rc(rc, NULL);
     //fail_on(rc, out, "Unable to write to the fpga !");
 
 
@@ -91,8 +112,10 @@ uint32_t simif_f1_t::read(size_t addr) {
     return *((uint64_t*)buf);
 #else
     uint32_t value;
-    rc = fpga_pci_peek(pci_bar_handle, addr >> 2, &value);
-    printf("read addr: %x, data %x, rc: %x\n", addr, value, rc);
+    addr <<= 2;
+    int rc = fpga_pci_peek(pci_bar_handle, addr, &value);
+//    fprintf(stderr, "read addr: %x, data %x\n", addr, value);
+    check_rc(rc, NULL);
     return value & 0xFFFFFFFF;
     //fail_on(rc, out, "Unable to read read from the fpga !");
 #endif
