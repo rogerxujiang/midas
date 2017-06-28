@@ -55,13 +55,13 @@ void simif_f1_t::write(size_t addr, uint32_t data) {
     char * buf = (char*)&cmd;
     ::write(driver_to_xsim_fd, buf, 8);
     // wait for ack
-    int gotdata = 0;
+/*    int gotdata = 0;
     while (gotdata == 0) {
         gotdata = ::read(xsim_to_driver_fd, buf, 8);
         if (gotdata != 0 && gotdata != 8) {
             printf("ERR GOTDATA %d\n", gotdata);
         }
-    }
+    }*/
 #else
 
     rc = fpga_pci_poke(pci_bar_handle, addr >> 2, data);
