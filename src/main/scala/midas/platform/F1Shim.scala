@@ -22,9 +22,13 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
     "MEM_WIDTH"  -> p(SlaveNastiKey).dataBits / 8
   ) ++ top.headerConsts
 
+  val cyclecount = Reg(init = UInt(0, width=64.W))
+  cyclecount := cyclecount + UInt(1)
+
 
   when (io.master.aw.fire()) {
-    printf("[master,awfire] addr %x, len %x, size %x, burst %x, lock %x, cache %x, prot %x, qos %x, region %x, id %x, user %x\n",
+    printf("[master,awfire,%x] addr %x, len %x, size %x, burst %x, lock %x, cache %x, prot %x, qos %x, region %x, id %x, user %x\n",
+      cyclecount,
       io.master.aw.bits.addr,
       io.master.aw.bits.len,
       io.master.aw.bits.size,
@@ -40,7 +44,8 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
   }
 
   when (io.master.w.fire()) {
-    printf("[master,wfire] data %x, last %x, id %x, strb %x, user %x\n",
+    printf("[master,wfire,%x] data %x, last %x, id %x, strb %x, user %x\n",
+      cyclecount,
       io.master.w.bits.data,
       io.master.w.bits.last,
       io.master.w.bits.id,
@@ -50,7 +55,8 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
   }
 
   when (io.master.b.fire()) {
-    printf("[master,bfire] resp %x, id %x, user %x\n",
+    printf("[master,bfire,%x] resp %x, id %x, user %x\n",
+      cyclecount,
       io.master.b.bits.resp,
       io.master.b.bits.id,
       io.master.b.bits.user
@@ -58,7 +64,8 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
   }
 
   when (io.master.ar.fire()) {
-    printf("[master,arfire] addr %x, len %x, size %x, burst %x, lock %x, cache %x, prot %x, qos %x, region %x, id %x, user %x\n",
+    printf("[master,arfire,%x] addr %x, len %x, size %x, burst %x, lock %x, cache %x, prot %x, qos %x, region %x, id %x, user %x\n",
+      cyclecount,
       io.master.ar.bits.addr,
       io.master.ar.bits.len,
       io.master.ar.bits.size,
@@ -74,7 +81,8 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
   }
 
   when (io.master.r.fire()) {
-    printf("[master,rfire] resp %x, data %x, last %x, id %x, user %x\n",
+    printf("[master,rfire,%x] resp %x, data %x, last %x, id %x, user %x\n",
+      cyclecount,
       io.master.r.bits.resp,
       io.master.r.bits.data,
       io.master.r.bits.last,
@@ -84,7 +92,9 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
   }
 
   when (io.slave.aw.fire()) {
-    printf("[slave,awfire] addr %x, len %x, size %x, burst %x, lock %x, cache %x, prot %x, qos %x, region %x, id %x, user %x\n",
+    printf("[slave,awfire,%x] addr %x, len %x, size %x, burst %x, lock %x, cache %x, prot %x, qos %x, region %x, id %x, user %x\n",
+      cyclecount,
+
       io.slave.aw.bits.addr,
       io.slave.aw.bits.len,
       io.slave.aw.bits.size,
@@ -100,7 +110,9 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
   }
 
   when (io.slave.w.fire()) {
-    printf("[slave,wfire] data %x, last %x, id %x, strb %x, user %x\n",
+    printf("[slave,wfire,%x] data %x, last %x, id %x, strb %x, user %x\n",
+      cyclecount,
+
       io.slave.w.bits.data,
       io.slave.w.bits.last,
       io.slave.w.bits.id,
@@ -110,7 +122,9 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
   }
 
   when (io.slave.b.fire()) {
-    printf("[slave,bfire] resp %x, id %x, user %x\n",
+    printf("[slave,bfire,%x] resp %x, id %x, user %x\n",
+      cyclecount,
+
       io.slave.b.bits.resp,
       io.slave.b.bits.id,
       io.slave.b.bits.user
@@ -118,7 +132,9 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
   }
 
   when (io.slave.ar.fire()) {
-    printf("[slave,arfire] addr %x, len %x, size %x, burst %x, lock %x, cache %x, prot %x, qos %x, region %x, id %x, user %x\n",
+    printf("[slave,arfire,%x] addr %x, len %x, size %x, burst %x, lock %x, cache %x, prot %x, qos %x, region %x, id %x, user %x\n",
+      cyclecount,
+
       io.slave.ar.bits.addr,
       io.slave.ar.bits.len,
       io.slave.ar.bits.size,
@@ -134,7 +150,9 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
   }
 
   when (io.slave.r.fire()) {
-    printf("[slave,rfire] resp %x, data %x, last %x, id %x, user %x\n",
+    printf("[slave,rfire,%x] resp %x, data %x, last %x, id %x, user %x\n",
+      cyclecount,
+
       io.slave.r.bits.resp,
       io.slave.r.bits.data,
       io.slave.r.bits.last,
@@ -143,8 +161,22 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
       )
   }
 
+  top.io.ctrl.aw <> Queue(io.master.aw, 10)
+  top.io.ctrl.w <> Queue(io.master.w, 10)
+  io.master.b <> Queue(top.io.ctrl.b, 10)
+
+  top.io.ctrl.ar <> Queue(io.master.ar, 10)
+  io.master.r <> Queue(top.io.ctrl.r, 10)
+
+//  top.io.ctrl <> io.master
+
+  io.slave.aw <> Queue(top.io.mem.aw, 10)
+  io.slave.w <> Queue(top.io.mem.w, 10)
+  top.io.mem.b <> Queue(io.slave.b, 10)
+
+  io.slave.ar <> Queue(top.io.mem.ar, 10)
+  top.io.mem.r <> Queue(io.slave.r, 10)
 
 
-  top.io.ctrl <> io.master
-  io.slave <> top.io.mem
+// io.slave <> top.io.mem
 }
