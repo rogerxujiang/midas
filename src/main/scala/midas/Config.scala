@@ -58,6 +58,7 @@ class F1Config extends Config(new Config((site, here, up) => {
   case MemNastiKey    => NastiParameters(64, 32, 16)
   case MasterNastiKey => site(CtrlNastiKey)
   case SlaveNastiKey => site(MemNastiKey)
+  case MemModelKey    => None
 }) ++ new SimConfig)
 
 class F1ConfigWithSnapshot extends Config(new Config((site, here, up) => {
