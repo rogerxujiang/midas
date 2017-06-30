@@ -22,6 +22,7 @@ class simif_f1_t: public virtual simif_t
     uint32_t is_write_ready();
     void check_rc(int rc, char * infostr);
     void fpga_shutdown();
+    void fpga_setup();
   private:
     char in_buf[MMIO_WIDTH];
     char out_buf[MMIO_WIDTH];
