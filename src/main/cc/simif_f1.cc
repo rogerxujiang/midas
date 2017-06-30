@@ -72,10 +72,10 @@ void simif_f1_t::write(size_t addr, uint32_t data) {
     // TODO: pipe comms
     //printf("HELLO WRITE addr: %x, data %x\n");
 
-    while (!is_write_ready());
     uint64_t cmd = (((uint64_t)(0x80000000 | addr)) << 32) | (uint64_t)data;
     char * buf = (char*)&cmd;
     ::write(driver_to_xsim_fd, buf, 8);
+    while (!is_write_ready());
     // wait for ack
 /*    int gotdata = 0;
     while (gotdata == 0) {
@@ -85,12 +85,13 @@ void simif_f1_t::write(size_t addr, uint32_t data) {
         }
     }*/
 #else
-    while (!is_write_ready());
     addr <<= 2;
 //    fprintf(stderr, "writing addr: %x, data %x\n", addr >> 2, data);
 //    __sync_synchronize();
 
     int rc = fpga_pci_poke(pci_bar_handle, addr, data);
+    while (!is_write_ready());
+
 //    __sync_synchronize();
 
 //    fprintf(stderr, "writing addr: %x, data %x\n", addr >> 2, data);
@@ -126,7 +127,7 @@ uint32_t simif_f1_t::read(size_t addr) {
 
     return *((uint64_t*)buf);
 #else
-    while (!is_write_ready());
+//    while (!is_write_ready());
 
     uint32_t value;
     addr <<= 3;

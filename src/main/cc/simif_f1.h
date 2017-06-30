@@ -4,7 +4,7 @@
 #include "simif.h"    // from midas
 //#include "f1.h" // from firesim/platforms/f1/f1.h
 
-//#define SIMULATION_XSIM
+#define SIMULATION_XSIM
 
 #ifndef SIMULATION_XSIM
 #include <fpga_pci.h>
