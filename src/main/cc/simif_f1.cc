@@ -87,8 +87,20 @@ void simif_f1_t::write(size_t addr, uint32_t data) {
 #else
     while (!is_write_ready());
     addr <<= 2;
+//    fprintf(stderr, "writing addr: %x, data %x\n", addr >> 2, data);
+//    __sync_synchronize();
+
     int rc = fpga_pci_poke(pci_bar_handle, addr, data);
-//    fprintf(stderr, "writing addr: %x, data %x\n", addr, data);
+//    __sync_synchronize();
+
+//    fprintf(stderr, "writing addr: %x, data %x\n", addr >> 2, data);
+
+    //fprintf(stderr, "writing addr: %x, data %x\n", addr, data);
+//    for (int i = 0; i < 100; i++) {
+//    __sync_synchronize();
+//    }
+
+
     check_rc(rc, NULL);
     //fail_on(rc, out, "Unable to write to the fpga !");
 
@@ -114,11 +126,21 @@ uint32_t simif_f1_t::read(size_t addr) {
 
     return *((uint64_t*)buf);
 #else
+    while (!is_write_ready());
+
     uint32_t value;
-    addr <<= 2;
+    addr <<= 3;
+//    fprintf(stderr, "wat\n");
+//    fprintf(stderr, "read addr: %x, data %x\n", addr >> 3, value);
+//    __sync_synchronize();
+
     int rc = fpga_pci_peek(pci_bar_handle, addr, &value);
-//    fprintf(stderr, "read addr: %x, data %x\n", addr, value);
-    check_rc(rc, NULL);
+//    __sync_synchronize();
+
+//    fprintf(stderr, "read addr: %x, data %x\n", addr >> 3, value);
+    //check_rc(rc, NULL);
+    //fprintf(stderr, "got response\n");
+
     return value & 0xFFFFFFFF;
     //fail_on(rc, out, "Unable to read read from the fpga !");
 #endif
@@ -144,10 +166,11 @@ uint32_t simif_f1_t::is_write_ready() {
     return *((uint64_t*)buf);
 #else
     uint32_t value;
-    addr = 0x1;
-    addr <<= 2;
+    uint64_t addr = 0x4;
+//    __sync_synchronize();
+//    fprintf(stderr, "wat\n");
     int rc = fpga_pci_peek(pci_bar_handle, addr, &value);
-//    fprintf(stderr, "read addr: %x, data %x\n", addr, value);
+//    __sync_synchronize();
     check_rc(rc, NULL);
     return value & 0xFFFFFFFF;
     //fail_on(rc, out, "Unable to read read from the fpga !");
