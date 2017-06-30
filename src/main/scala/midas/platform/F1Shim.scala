@@ -165,8 +165,33 @@ class F1Shim(simIo: midas.core.SimWrapperIO)
   top.io.ctrl.w <> Queue(io.master.w, 10)
   io.master.b <> Queue(top.io.ctrl.b, 10)
 
-  top.io.ctrl.ar <> Queue(io.master.ar, 10)
-  io.master.r <> Queue(top.io.ctrl.r, 10)
+
+  // reads appear to be serialized, so a lot of this is probably unnecessary,
+  // but just to be safe...
+  val from_cpu_arq = Queue(io.master.ar, 10)
+  val write_status_request_queue = Module(new Queue(Bool(), 4))
+
+  val is_write_req = from_cpu_arq.bits.addr(2)
+  write_status_request_queue.io.enq.bits := is_write_req
+  from_cpu_arq.ready := (top.io.ctrl.ar.ready && !is_write_req) || (write_status_request_queue.io.enq.ready && is_write_req)
+  top.io.ctrl.ar.bits := from_cpu_arq.bits
+  top.io.ctrl.ar.bits.addr := (from_cpu_arq.bits.addr >> UInt(3)) << UInt(2)
+  top.io.ctrl.ar.valid := from_cpu_arq.valid && !is_write_req
+  write_status_request_queue.io.enq.valid := from_cpu_arq.valid && is_write_req
+
+//  top.io.ctrl.ar <> 
+  val write_interface_ready = io.master.aw.ready && io.master.w.ready
+
+  val from_midas_rq = Queue(top.io.ctrl.r, 10)
+
+  io.master.r.valid := from_midas_rq.valid || write_status_request_queue.io.deq.valid
+  write_status_request_queue.io.deq.ready := io.master.r.ready // write status request always gets priority
+  from_midas_rq.ready := io.master.r.ready && !write_status_request_queue.io.deq.valid
+  io.master.r.bits.resp := Mux(write_status_request_queue.io.deq.valid, UInt(0), from_midas_rq.bits.resp)
+  io.master.r.bits.data := Mux(write_status_request_queue.io.deq.valid, write_interface_ready, from_midas_rq.bits.data)
+  io.master.r.bits.last := Mux(write_status_request_queue.io.deq.valid, UInt(1), from_midas_rq.bits.last)
+  io.master.r.bits.id := Mux(write_status_request_queue.io.deq.valid, UInt(0), from_midas_rq.bits.id)
+  io.master.r.bits.user := Mux(write_status_request_queue.io.deq.valid, UInt(0), from_midas_rq.bits.user)
 
 //  top.io.ctrl <> io.master
 

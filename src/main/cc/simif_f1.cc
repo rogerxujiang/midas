@@ -11,9 +11,9 @@
 simif_f1_t::simif_f1_t() {
 #ifdef SIMULATION_XSIM
   mkfifo(driver_to_xsim, 0666);
-  printf("opening driver to xsim\n");
+  fprintf(stderr, "opening driver to xsim\n");
   driver_to_xsim_fd = open(driver_to_xsim, O_WRONLY);
-  printf("opening xsim to driver\n");
+  fprintf(stderr, "opening xsim to driver\n");
   xsim_to_driver_fd = open(xsim_to_driver, O_RDONLY);
 #else
   fprintf(stderr, "===== FPGA setup =====\n");
@@ -71,6 +71,8 @@ void simif_f1_t::write(size_t addr, uint32_t data) {
 
     // TODO: pipe comms
     //printf("HELLO WRITE addr: %x, data %x\n");
+
+    while (!is_write_ready());
     uint64_t cmd = (((uint64_t)(0x80000000 | addr)) << 32) | (uint64_t)data;
     char * buf = (char*)&cmd;
     ::write(driver_to_xsim_fd, buf, 8);
@@ -83,6 +85,7 @@ void simif_f1_t::write(size_t addr, uint32_t data) {
         }
     }*/
 #else
+    while (!is_write_ready());
     addr <<= 2;
     int rc = fpga_pci_poke(pci_bar_handle, addr, data);
 //    fprintf(stderr, "writing addr: %x, data %x\n", addr, data);
@@ -97,7 +100,7 @@ uint32_t simif_f1_t::read(size_t addr) {
 #ifdef SIMULATION_XSIM
     // TODO: pipe comms
     //printf("HELLO READ addr: %x\n");
-    uint64_t cmd = addr;
+    uint64_t cmd = addr << 1;
     char * buf = (char*)&cmd;
     ::write(driver_to_xsim_fd, buf, 8);
 
@@ -112,6 +115,36 @@ uint32_t simif_f1_t::read(size_t addr) {
     return *((uint64_t*)buf);
 #else
     uint32_t value;
+    addr <<= 2;
+    int rc = fpga_pci_peek(pci_bar_handle, addr, &value);
+//    fprintf(stderr, "read addr: %x, data %x\n", addr, value);
+    check_rc(rc, NULL);
+    return value & 0xFFFFFFFF;
+    //fail_on(rc, out, "Unable to read read from the fpga !");
+#endif
+}
+
+
+uint32_t simif_f1_t::is_write_ready() {
+#ifdef SIMULATION_XSIM
+    // TODO: pipe comms
+    //printf("HELLO READ addr: %x\n");
+    uint64_t cmd = 0x1;
+    char * buf = (char*)&cmd;
+    ::write(driver_to_xsim_fd, buf, 8);
+
+    int gotdata = 0;
+    while (gotdata == 0) {
+        gotdata = ::read(xsim_to_driver_fd, buf, 8);
+        if (gotdata != 0 && gotdata != 8) {
+            printf("ERR GOTDATA %d\n", gotdata);
+        }
+    }
+
+    return *((uint64_t*)buf);
+#else
+    uint32_t value;
+    addr = 0x1;
     addr <<= 2;
     int rc = fpga_pci_peek(pci_bar_handle, addr, &value);
 //    fprintf(stderr, "read addr: %x, data %x\n", addr, value);
