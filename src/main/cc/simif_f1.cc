@@ -42,6 +42,7 @@ void simif_f1_t::fpga_shutdown() {
 }
 
 void simif_f1_t::fpga_setup() {
+#ifndef SIMULATION_XSIM
     /*
      * pci_vendor_id and pci_device_id values below are Amazon's and avaliable
      * to use for a given FPGA slot.
@@ -100,6 +101,7 @@ void simif_f1_t::fpga_setup() {
     pci_bar_handle = PCI_BAR_HANDLE_INIT;
     rc = fpga_pci_attach(0, FPGA_APP_PF, APP_PF_BAR0, 0, &pci_bar_handle);
     check_rc(rc, "fpga_pci_attach FAILED");
+#endif
 }
 
 
