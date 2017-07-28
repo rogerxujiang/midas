@@ -4,22 +4,15 @@ package widgets
 import util.ParameterizedBundle // from rocketchip
 import chisel3._
 import chisel3.util._
-import junctions._
+import freechips.rocketchip.amba.axi4._
 import config.{Parameters, Field}
 
 import scala.collection.mutable.{HashMap, ArrayBuffer}
 
-case object CtrlNastiKey extends Field[NastiParameters]
+case object CtrlAXIKey extends Field[AXI4BundleParameters]
 
 // Just NASTI, but pointing at the right key.
-class WidgetMMIO(implicit p: Parameters) extends NastiIO()(p)
-  with HasNastiParameters
-
-object WidgetMMIO {
-  def apply()(implicit p: Parameters): WidgetMMIO = {
-    new WidgetMMIO()(p alterPartial ({ case NastiKey => p(CtrlNastiKey) }))
-  }
-}
+class WidgetMMIO(params: AXI4BundleParameters) extends AXI4Bundle(params)
 
 // All widgets must implement this interface
 abstract class WidgetIO(implicit p: Parameters) extends ParameterizedBundle()(p){

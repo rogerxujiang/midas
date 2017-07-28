@@ -35,7 +35,7 @@ abstract class MemModel(implicit p: Parameters) extends EndpointWidget()(p){
   }
 }
 
-abstract class NastiWidgetBase(implicit p: Parameters) extends MemModel {
+abstract class AXI4WidgetBase(implicit p: Parameters) extends MemModel {
   val tNasti = io.hPort.hBits
   val tReset = io.tReset.bits
   val tFire = io.hPort.toHost.hValid && io.hPort.fromHost.hReady && io.tReset.valid
@@ -98,7 +98,7 @@ abstract class NastiWidgetBase(implicit p: Parameters) extends MemModel {
 }
 
 // Widget to handle NastiIO efficiently when mem models are not available
-class NastiWidget(implicit val p: Parameters) extends NastiWidgetBase {
+class AXI4Widget(implicit val p: Parameters) extends AXI4WidgetBase {
   val deltaBuf = Module(new Queue(UInt(32.W), 2))
   val delta = Reg(UInt(32.W))
   val readCount = Reg(UInt(32.W))

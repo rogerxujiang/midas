@@ -2,9 +2,8 @@ package midas
 package core
 
 // from rocketchip
-import junctions.{NastiIO, NastiKey}
-import uncore.axi4.AXI4Bundle
-import config.Parameters
+import freechips.rocketchip.amba.axi4._
+import freechips.rocketchip.config.Parameters
 
 import chisel3._
 import chisel3.util._
@@ -28,19 +27,12 @@ trait Endpoint {
 }
 
 abstract class SimMemIO extends Endpoint {
-  def widget(p: Parameters) = { 
-    val param = p alterPartial ({ case NastiKey => p(MemNastiKey) })
+  def widget(p: Parameters) = {
+    val param = p(MemAXIKey)
     (p(MemModelKey): @unchecked) match {
       case Some(modelGen) => modelGen(param)
-      case None => new NastiWidget()(param)
+      case None => new AXI4Widget(param)
     }
-  }
-}
- 
-class SimNastiMemIO extends SimMemIO {
-  def matchType(data: Data) = data match {
-    case channel: NastiIO => channel.w.valid.dir == OUTPUT
-    case _ => false
   }
 }
 
@@ -53,5 +45,5 @@ class SimAXI4MemIO extends SimMemIO {
 
 case class EndpointMap(endpoints: Seq[Endpoint]) {
   def get(data: Data) = endpoints find (_ matchType data)
-  def ++(x: EndpointMap) = EndpointMap(endpoints ++ x.endpoints) 
+  def ++(x: EndpointMap) = EndpointMap(endpoints ++ x.endpoints)
 }

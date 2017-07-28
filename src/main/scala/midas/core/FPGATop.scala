@@ -1,22 +1,22 @@
 package midas
 package core
 
-import junctions._
+import freechips.rocektchip.amba.axi4._
 import widgets._
 import chisel3._
 import chisel3.util._
-import config.{Parameters, Field}
+import freechips.rocketchip.config.{Parameters, Field}
 import scala.collection.mutable.ArrayBuffer
 
-case object MemNastiKey extends Field[NastiParameters]
+case object MemAXIKey extends Field[AXI4BundleParameters]
 case object FpgaMMIOSize extends Field[BigInt]
 
 class FPGATopIO(implicit p: Parameters) extends _root_.util.ParameterizedBundle()(p) {
-  val ctrl = Flipped(new WidgetMMIO()(p alterPartial ({ case NastiKey => p(CtrlNastiKey) })))
-  val mem  = new NastiIO()(p alterPartial ({ case NastiKey => p(MemNastiKey) }))
+  val ctrl = Flipped(new WidgetMMIO(p(CtrlAXIKey))
+  val mem  = new AXI4Bundle(p(MemAXIKey)
 }
 
-// Platform agnostic wrapper of the simulation models for FPGA 
+// Platform agnostic wrapper of the simulation models for FPGA
 // TODO: Tilelink2 Port
 class FPGATop(simIoType: SimWrapperIO)(implicit p: Parameters) extends Module with HasWidgets {
   val io = IO(new FPGATopIO)

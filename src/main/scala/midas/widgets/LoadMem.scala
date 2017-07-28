@@ -2,36 +2,35 @@ package midas
 package widgets
 
 import Chisel._
-import junctions._
+import freechips.rocketchip.amba._
 import config.{Parameters, Field}
 
-class LoadMemIO(hKey: Field[NastiParameters])(implicit p: Parameters) extends WidgetIO()(p){
+class LoadMemIO(hKey: Field[AXI4BundleParameters])(implicit p: Parameters) extends WidgetIO()(p){
   // TODO: Slave nasti key should be passed in explicitly
-  val toSlaveMem = new NastiIO()(p alterPartial ({ case NastiKey => p(hKey) }))
+  val toSlaveMem = new AXI4Bundle(p(hKey))
 }
-
-class NastiParams()(implicit val p: Parameters) extends HasNastiParameters
 
 // A crude load mem unit that writes in single beats into the destination memory system
 // Arguments:
 //  Hkey -> the Nasti key for the interconnect of the memory system we are writing to
-class LoadMemWidget(hKey: Field[NastiParameters])(implicit p: Parameters) extends Widget()(p) {
+class LoadMemWidget(hKey: Field[AXI4BundleParameters])(implicit p: Parameters) extends Widget()(p) {
   val io = IO(new LoadMemIO(hKey))
 
   // prefix h -> host memory we are writing to
   // prefix c -> control nasti interface who is the master of this unit
-  val hParams = new NastiParams()(p alterPartial ({ case NastiKey => p(hKey) }))
-  val cParams = new NastiParams()(p alterPartial ({ case NastiKey => p(CtrlNastiKey) }))
+  val hParams = p(hKey)
+  val cParams = p(CtrlAXIKey)
 
-  val cWidth = p(CtrlNastiKey).dataBits
-  val hWidth = p(hKey).dataBits
-  val size = hParams.bytesToXSize(UInt(hWidth/8))
+  val cWidth = cParams.dataBits
+  val hWidth = hParams.dataBits
+  val size = log2Up(hWidth/8)-1
   val widthRatio = hWidth/cWidth
   require(hWidth >= cWidth)
   require(p(hKey).addrBits <= cWidth)
 
   val wAddrQ = genAndAttachQueue(Wire(Decoupled(UInt(p(hKey).addrBits.W))), "W_ADDRESS")
-  io.toSlaveMem.aw.bits := NastiWriteAddressChannel(
+  io.toSlaveMem.aw.bits := AXI4AWBundle
+  NastiWriteAddressChannel(
       id = UInt(0),
       addr = wAddrQ.bits,
       size = size)(p alterPartial ({ case NastiKey => p(hKey) }))

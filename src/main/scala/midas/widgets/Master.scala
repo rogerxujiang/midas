@@ -2,16 +2,16 @@ package midas
 package widgets
 
 // from rocketchip
-import junctions._
+import freechips.rocketchip.amba._
+import freechips.rocketchip.config.Parameters
 
 import chisel3._
 import chisel3.util.{Decoupled, Counter, log2Up}
-import config.Parameters
 
 class EmulationMasterIO(implicit p: Parameters) extends WidgetIO()(p){
   val simReset = Output(Bool())
   val done = Input(Bool())
-  val step = Decoupled(UInt(p(CtrlNastiKey).dataBits.W))
+  val step = Decoupled(UInt(p(CtrlAXIKey).dataBits.W))
 }
 
 object Pulsify {

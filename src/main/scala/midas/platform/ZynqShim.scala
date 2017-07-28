@@ -1,12 +1,12 @@
 package midas
 package platform
 
-import util.ParameterizedBundle // from rocketchip
+import freechips.rocketchip.util.ParameterizedBundle // from rocketchip
 
 import chisel3._
 import chisel3.util._
-import junctions._
-import config.{Parameters, Field}
+import freechips.rocektchip.amba.axi4._
+import freechips.rocketchip.config.{Parameters, Field}
 
 abstract class PlatformShim extends Module {
   def top: midas.core.FPGATop
@@ -24,12 +24,12 @@ abstract class PlatformShim extends Module {
   }
 }
 
-case object MasterNastiKey extends Field[NastiParameters]
-case object SlaveNastiKey extends Field[NastiParameters]
+case object MasterAXIKey extends Field[AXI4BundleParameters]
+case object SlaveAXIKey extends Field[AXI4BundleParameters]
 
 class ZynqShimIO(implicit p: Parameters) extends ParameterizedBundle()(p) {
-  val master = Flipped(new NastiIO()(p alterPartial ({ case NastiKey => p(MasterNastiKey) })))
-  val slave  = new NastiIO()(p alterPartial ({ case NastiKey => p(SlaveNastiKey) }))
+  val master = Flipped(new AXI4Bundle(p(MasterAXIKey))
+  val slave  = new AXI4Bundle(SlaveAXIKey)
 }
 
 class ZynqShim(simIo: midas.core.SimWrapperIO)
@@ -37,8 +37,8 @@ class ZynqShim(simIo: midas.core.SimWrapperIO)
   val io = IO(new ZynqShimIO)
   val top = Module(new midas.core.FPGATop(simIo))
   val headerConsts = List(
-    "MMIO_WIDTH" -> p(MasterNastiKey).dataBits / 8,
-    "MEM_WIDTH"  -> p(SlaveNastiKey).dataBits / 8
+    "MMIO_WIDTH" -> p(MasterAXIKey).dataBits / 8,
+    "MEM_WIDTH"  -> p(SlaveAXIKey).dataBits / 8
   ) ++ top.headerConsts
 
   top.io.ctrl <> io.master

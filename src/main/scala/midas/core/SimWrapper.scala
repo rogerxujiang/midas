@@ -2,10 +2,9 @@ package midas
 package core
 
 // from rocketchip
-import junctions.NastiIO
-import uncore.axi4.AXI4Bundle
-import config.{Parameters, Field}
-import util.HeterogeneousBag
+import freechips.rocketchip.amba.axi4._
+import freechips.rocketchip.config.{Parameters, Field}
+import freechips.rocketchip.util.HeterogeneousBag
 
 import chisel3._
 import chisel3.util._
