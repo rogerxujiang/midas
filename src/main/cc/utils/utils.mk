@@ -11,6 +11,9 @@ endif
 
 # Compile utility code
 lib_files := biguint mm mm_dramsim2 $(if $(filter $(CXX),cl),,midas_context)
+ifeq ($(PLATFORM), catapult)
+	lib_files += umi umi_dramsim2
+endif
 lib_cc    := $(addprefix $(util_dir)/, $(addsuffix .cc, $(lib_files)))
 lib_o     := $(addprefix $(GEN_DIR)/, $(addsuffix .$(o), $(lib_files)))
 

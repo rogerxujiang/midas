@@ -37,19 +37,14 @@ $(info output directory: $(OUT_DIR))
 $(info driver source files: $(DRIVER))
 $(info clock period: $(CLOCK_PERIOD))
 
-# TODO: better way?
-shim := $(shell echo $(PLATFORM)| cut -c 1 | tr [:lower:] [:upper:])$(shell echo $(PLATFORM)| cut -c 2-)Shim
+shim := FPGATop
 
 ifneq ($(CXX),cl)
 override CXXFLAGS := $(CXXFLAGS) -std=c++11 -Wall -I$(midas_dir)/dramsim2
 o = o
 else
-ifneq ($(SHELL),sh.exe)
 PATH_CONVERTER ?= cygpath -w
 path = $(patsubst %\,%,$(shell $(PATH_CONVERTER) $(1)))
-else
-path = $(1)
-endif
 override CXXFLAGS := $(CXXFLAGS) /EHsc /I$(call path,$(midas_dir)/dramsim2)
 o = obj
 endif
@@ -70,7 +65,7 @@ override CXXFLAGS += /I$(call path,$(midas_dir)) /I$(call path,$(util_dir))
 override CXXFLAGS += $(foreach f, $(DRIVER), /I$(call path,$(dir $(f))))
 endif
 
-design_v = $(GEN_DIR)/$(shim).v $(GEN_DIR)/$(DESIGN).macros.v
+design_v = $(GEN_DIR)/$(shim).v
 driver_h = $(foreach t, $(DRIVER), $(wildcard $(dir $(t))/*.h))
 endpoint_h := $(wildcard $(endpoint_dir)/*.h)
 endpoint_cc := $(wildcard $(endpoint_dir)/*.cc)
@@ -85,7 +80,7 @@ endif
 platform_files := simif simif_$(PLATFORM) sample/sample
 platform_h := $(addprefix $(midas_dir)/, $(addsuffix .h, $(platform_files)))
 platform_cc := $(addprefix $(midas_dir)/, $(addsuffix .cc, $(platform_files) sample/simif_sample))
-platform_o := $(addprefix $(GEN_DIR)/, $(addsuffix .$(o), $(platform_files)))
+platform_o := $(addprefix $(GEN_DIR)/, $(addsuffix .$(o), $(platform_files) sample/simif_sample))
 
 $(platform_o): $(GEN_DIR)/%.$(o): $(midas_dir)/%.cc $(GEN_DIR)/$(DESIGN)-const.h $(platform_h)
 ifneq ($(CXX),cl)
@@ -107,7 +102,7 @@ else
 	/link $(LDFLAGS)
 endif
 
-$(PLATFORM): $(OUT_DIR)/$(DESIGN)-$(PLATFORM) $(OUT_DIR)/$(DESIGN).chain $(OUT_DIR)/dramsim2_ini
+$(PLATFORM): $(OUT_DIR)/$(DESIGN)-$(PLATFORM) $(OUT_DIR)/$(DESIGN).chain
 
 ifneq ($(CXX),cl) # no emulation, replay with visual studio
 emul_files := simif simif_emul emul/mmio_$(PLATFORM) sample/sample

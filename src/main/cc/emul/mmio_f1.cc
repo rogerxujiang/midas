@@ -1,4 +1,4 @@
-#include "mmio_zynq.h"
+#include "mmio_f1.h"
 #include "mm.h"
 #include "mm_dramsim2.h"
 #include <memory>
@@ -14,12 +14,12 @@
 #endif // VM_TRACE
 #endif
 
-void mmio_zynq_t::read_req(uint64_t addr) {
+void mmio_f1_t::read_req(uint64_t addr) {
   mmio_req_addr_t ar(0, addr << CHANNEL_SIZE, CHANNEL_SIZE, 0);
   this->ar.push(ar);
 }
 
-void mmio_zynq_t::write_req(uint64_t addr, void* data) {
+void mmio_f1_t::write_req(uint64_t addr, void* data) {
   static const size_t CTRL_STRB = (1 << CTRL_STRB_BITS) - 1;
   mmio_req_addr_t aw(0, addr << CHANNEL_SIZE, CHANNEL_SIZE, 0);
   mmio_req_data_t w((char*) data, CTRL_STRB, true);
@@ -27,7 +27,7 @@ void mmio_zynq_t::write_req(uint64_t addr, void* data) {
   this->w.push(w);
 }
 
-void mmio_zynq_t::tick(
+void mmio_f1_t::tick(
   bool reset,
   bool ar_ready,
   bool aw_ready,
@@ -57,7 +57,7 @@ void mmio_zynq_t::tick(
   }
 }
 
-bool mmio_zynq_t::read_resp(void* data) {
+bool mmio_f1_t::read_resp(void* data) {
   if (ar.empty() || r.empty()) {
     return false;
   } else {
@@ -65,7 +65,6 @@ bool mmio_zynq_t::read_resp(void* data) {
     size_t word_size = 1 << ar.size;
     for (size_t i = 0 ; i <= ar.len ; i++) {
       mmio_resp_data_t& r = this->r.front();
-      assert(ar.id == r.id && (i < ar.len || r.last));
       memcpy(((char*) data) + i * word_size, r.data, word_size);
       this->r.pop();
     }
@@ -75,11 +74,10 @@ bool mmio_zynq_t::read_resp(void* data) {
   }
 }
 
-bool mmio_zynq_t::write_resp() {
+bool mmio_f1_t::write_resp() {
   if (aw.empty() || b.empty()) {
     return false;
   } else {
-    assert(aw.front().id == b.front());
     aw.pop();
     b.pop();
     write_inflight = false;
@@ -92,7 +90,7 @@ extern std::unique_ptr<mmio_t> master;
 std::unique_ptr<mm_t> slave;
 
 void* init(uint64_t memsize, bool dramsim) {
-  master.reset(new mmio_zynq_t);
+  master.reset(new mmio_f1_t);
   slave.reset(dramsim ? (mm_t*) new mm_dramsim2_t : (mm_t*) new mm_magic_t);
   slave->init(memsize, MEM_WIDTH, 64);
   return slave->get_data();
@@ -173,8 +171,8 @@ void tick(
   vc_handle slave_b_bits_resp,
   vc_handle slave_b_bits_id
 ) {
-  mmio_zynq_t* m;
-  assert(m = dynamic_cast<mmio_zynq_t*>(master.get()));
+  mmio_f1_t* m;
+  assert(m = dynamic_cast<mmio_f1_t*>(master.get()));
   uint32_t master_r_data[MASTER_DATA_SIZE];
   for (size_t i = 0 ; i < MASTER_DATA_SIZE ; i++) {
     master_r_data[i] = vc_4stVectorRef(master_r_bits_data)[i].d;
@@ -305,8 +303,8 @@ extern VerilatedVcdC* tfp;
 #endif // VM_TRACE
 
 void tick() {
-  mmio_zynq_t* m;
-  assert(m = dynamic_cast<mmio_zynq_t*>(master.get()));
+  mmio_f1_t* m;
+  assert(m = dynamic_cast<mmio_f1_t*>(master.get()));
   top->clock = 1;
   top->eval();
 #if VM_TRACE
