@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <map>
+#include <set>
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -74,8 +75,14 @@ public:
   }
 
   virtual int finish() {
-    fprintf(stderr, "[%s] Runs %" PRIu64 " cycles\n",
-      pass ? "PASS" : "FAIL", cycles);
+    for (auto signal: unmatched_signals) {
+      std::cerr << "Unmatched: " << signal << std::endl;
+    }
+    if (unmatched_signals.size()) {
+      std::cerr << "# unmatched signals: " << unmatched_signals.size() << std::endl;
+    }
+    std::cerr << "[" << (pass ? "PASS" : "FAIL") << "] ";
+    std::cerr << "Runs " << cycles << " cycles\n" << std::endl;
     for (size_t i = 0 ; i < samples.size() ; i++) {
       delete samples[i];
     }
@@ -102,6 +109,7 @@ private:
   std::vector<std::vector<std::string>> signals;
   std::vector<std::vector<size_t>> widths;
   std::map<std::string, std::string> match_map;
+  std::set<std::string> unmatched_signals;
 
   void load_samples(const char* filename) {
     std::ifstream file(filename);
@@ -204,6 +212,8 @@ private:
     auto it = match_map.find(ref);
     if (it != match_map.end()) {
       put_value(get_signal(it->second), bit, tpe);
+    } else {
+      unmatched_signals.insert(ref);
     }
   }
 
