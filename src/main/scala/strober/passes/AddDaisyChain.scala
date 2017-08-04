@@ -139,6 +139,9 @@ class AddDaisyChains(
         sum + bitWidth(s.dataType).toInt * s.depth
       case (sum, s: DefMemory) if s.readLatency == 1 =>
         sum + bitWidth(s.dataType).toInt * (s.readers.size + s.readwriters.size)
+      case (sum, s: WDefInstance) if m.name == "smem_ext" || m.name == "smem_0_ext" =>
+        val sram = srams(s.module)
+        sum + 1 * (sram.ports filter (_.output.nonEmpty)).size
       case (sum, s: WDefInstance) =>
         val sram = srams(s.module)
         sum + sram.width * (sram.ports filter (_.output.nonEmpty)).size
@@ -207,7 +210,8 @@ class AddDaisyChains(
         case s: WDefInstance =>
           val memref = wref(s.name, s.tpe, InstanceKind)
           val ports = srams(s.module).ports filter (_.output.nonEmpty)
-          ports map (p => wsub(memref, p.output.get.name))
+          (ports map (p => wsub(memref, p.output.get.name))
+                 map (e => if (m.name == "smem_ext" || m.name == "smem_0_ext") bits(e, 0, 0) else e))
       }
       stmts ++ instStmts ++ portConnects ++ daisyConnects(regs, chain.daisyLen, chain.daisyWidth)
     }
@@ -224,6 +228,9 @@ class AddDaisyChains(
       case ((sum, max, depth), s: DefMemory) =>
         val width = bitWidth(s.dataType).toInt
         (sum + width, max max width, depth max s.depth)
+      case ((sum, max, depth), s: WDefInstance) if m.name == "smem_ext" || m.name == "smem_0_ext" =>
+        val sram = srams(s.module)
+        (sum + 1, max max 1, depth max sram.depth)
       case ((sum, max, depth), s: WDefInstance) =>
         val sram = srams(s.module)
         (sum + sram.width, max max sram.width, depth max sram.depth)
@@ -292,7 +299,7 @@ class AddDaisyChains(
             if (re._2) not(netlist(ex1)) else netlist(ex1))
         })
       )
-      cat(create_exps(data).reverse)
+      if (m.name == "smem_ext" || m.name == "smem_0_ext") bits(data, 0, 0) else cat(create_exps(data).reverse)
     }
 
     def daisyConnects(elems: Statements, width: Int, daisyLen: Int, daisyWidth: Int): Seq[Statement] = {

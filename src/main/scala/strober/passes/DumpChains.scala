@@ -39,9 +39,18 @@ class DumpChains(
             case s: WDefInstance =>
               val sram = srams(s.module)
               (chainType: @unchecked) match {
+                case ChainType.SRAM if mod == "smem_ext" || mod == "smem_0_ext" =>
+                  chainFile write s"$id ${path}.${s.name}.ram 1 ${sram.depth}\n"
+                  1
                 case ChainType.SRAM =>
                   chainFile write s"$id ${path}.${s.name}.ram ${sram.width} ${sram.depth}\n"
                   sram.width
+                case ChainType.Trace if mod == "smem_ext" || mod == "smem_0_ext" =>
+                  val ports = sram.ports filter (_.output.nonEmpty)
+                  (ports foldLeft 0){ (sum, p) =>
+                    chainFile write s"$id ${path}.${s.name}.${p.output.get.name} 1 -1\n"
+                    sum + 1
+                  }
                 case ChainType.Trace =>
                   val ports = sram.ports filter (_.output.nonEmpty)
                   (ports foldLeft 0){ (sum, p) =>
