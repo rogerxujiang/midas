@@ -28,7 +28,7 @@ object Utils {
   def and(e1: Expression, e2: Expression) =
     DoPrim(PrimOps.And, Seq(e1, e2), Nil, getType(e1, e2))
   def bits(e: Expression, high: BigInt, low: BigInt) =
-    DoPrim(PrimOps.Bits, Seq(e), Seq(high, low), e.tpe)
+    DoPrim(PrimOps.Bits, Seq(e), Seq(high, low), UIntType(IntWidth(high-low+1)))
   def cat(es: Seq[Expression]): Expression =
     if (es.tail.isEmpty) es.head else {
       val left = cat(es.slice(0, es.length/2))
