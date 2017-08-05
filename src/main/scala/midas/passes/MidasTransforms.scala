@@ -28,6 +28,19 @@ object MidasAnnotation {
   }
 }
 
+class DeleteDebugLogic(noDebug: Boolean = true) extends firrtl.passes.Pass {
+  override def inputForm = LowForm
+  override def outputForm = LowForm
+
+  def onStmt(s: Statement): Statement =
+    s map onStmt match {
+      case s @ (_: Stop | _: Print) => EmptyStmt
+      case s => s
+    }
+
+  def run(c: Circuit) = c.copy(modules = c.modules map (_ map onStmt))
+}
+
 private[midas] class MidasTransforms(
     dir: File,
     io: chisel3.Data)
@@ -37,6 +50,7 @@ private[midas] class MidasTransforms(
   def execute(state: CircuitState) = (getMyAnnotations(state): @unchecked) match {
     case Seq(MidasAnnotation(state.circuit.main, conf, json, lib)) =>
       val xforms = Seq(
+        new DeleteDebugLogic(param(NoDebug)),
         firrtl.passes.RemoveValidIf,
         new firrtl.transforms.ConstantPropagation,
         firrtl.passes.SplitExpressions,
