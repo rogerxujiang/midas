@@ -48,19 +48,6 @@ class DumpChains(
                     sum + p.width
                   }
               }
-            case s: DefMemory if s.readLatency > 0 =>
-              val width = bitWidth(s.dataType)
-              (chainType: @unchecked) match {
-                case ChainType.SRAM =>
-                  chainFile write s"$id ${path}.${s.name} ${width} ${s.depth}\n"
-                  width.toInt
-                case ChainType.Trace =>
-                  s.readers.indices foreach (i =>
-                    chainFile write s"$id ${path}.${s.name}.R${i}_data ${width} -1\n")
-                  s.readwriters.indices foreach (i =>
-                    chainFile write s"$id ${path}.${s.name}.RW${i}_rdata ${width} -1\n")
-                  (s.readers.size + s.readwriters.size) * width.toInt
-              }
             case s: DefMemory =>
               val name = verilogRenameN(s.name)
               val width = bitWidth(s.dataType).toInt

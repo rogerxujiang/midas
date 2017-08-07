@@ -56,15 +56,13 @@ class AddDaisyChains(
   type ChainModSet = collection.mutable.HashSet[String]
 
   private def bigRegFile(s: DefMemory) =
-    s.readLatency == 0 && s.depth >= 32 && bitWidth(s.dataType) >= 32
+    s.readLatency == 0 && (s.depth > 16 || s.depth * bitWidth(s.dataType) > 255)
 
   private def collect(chainType: ChainType.Value, chains: Statements)(s: Statement): Statement = {
     chainType match {
       // TODO: do bfs from inputs
       case ChainType.Trace => s match {
         case s: WDefInstance if srams contains s.module =>
-          chains += s
-        case s: DefMemory if s.readLatency == 1 =>
           chains += s
         case _ =>
       }
@@ -82,8 +80,6 @@ class AddDaisyChains(
       }
       case ChainType.SRAM => s match {
         case s: WDefInstance if srams contains s.module =>
-          chains += s
-        case s: DefMemory if s.readLatency == 1 =>
           chains += s
         case s: DefMemory if s.readLatency > 0 =>
           error("${s.info}: This type of memory is not supported")
@@ -117,8 +113,6 @@ class AddDaisyChains(
         sum + bitWidth(s.tpe).toInt
       case (sum, s: DefMemory) if s.readLatency == 0 && !bigRegFile(s) =>
         sum + bitWidth(s.dataType).toInt * s.depth
-      case (sum, s: DefMemory) if s.readLatency == 1 =>
-        sum + bitWidth(s.dataType).toInt * (s.readers.size + s.readwriters.size)
       case (sum, s: WDefInstance) =>
         val sram = srams(s.module)
         sum + sram.width * (sram.ports filter (_.output.nonEmpty)).size
@@ -170,20 +164,13 @@ class AddDaisyChains(
       val stmts = new Statements
       val regs = meta.chains(chainType)(m.name) flatMap {
         case s: DefRegister => create_exps(s.name, s.tpe)
-        case s: DefMemory => chainType match {
-          case ChainType.Regs =>
-            val rs = (0 until s.depth) map (i => s"scan_$i")
-            val mem = s.copy(readers = s.readers ++ rs)
-            val exps = rs map (r => create_exps(memPortField(mem, r, "data")))
-            readers(s.name) = rs
-            ((0 until exps.head.size) foldLeft Seq[Expression]())(
-              (res, i) => res ++ (exps map (_(i))))
-          case ChainType.Trace =>
-            (s.readers flatMap (r =>
-              create_exps(memPortField(s, r, "data")).reverse)) ++
-            (s.readwriters flatMap (rw =>
-              create_exps(memPortField(s, rw, "rdata")).reverse))
-        }
+        case s: DefMemory =>
+          val rs = (0 until s.depth) map (i => s"scan_$i")
+          val mem = s.copy(readers = s.readers ++ rs)
+          val exps = rs map (r => create_exps(memPortField(mem, r, "data")))
+          readers(s.name) = rs
+          ((0 until exps.head.size) foldLeft Seq[Expression]())(
+            (res, i) => res ++ (exps map (_(i))))
         case s: WDefInstance =>
           val memref = wref(s.name, s.tpe, InstanceKind)
           val ports = srams(s.module).ports filter (_.output.nonEmpty)
