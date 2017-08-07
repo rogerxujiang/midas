@@ -105,6 +105,7 @@ class StroberTransforms(
       }
       val meta = StroberMetaData(state.circuit)
       val xforms = Seq(
+        new SeqMemToRegFile,
         new AddDaisyChains(meta, srams),
         new DumpChains(dir, meta, srams))
       (xforms foldLeft state)((in, xform) =>

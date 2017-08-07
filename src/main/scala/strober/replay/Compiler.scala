@@ -18,8 +18,9 @@ private class Compiler(args: CompilerArgs) extends firrtl.Compiler {
     Seq(new midas.passes.ConfToJSON(args.conf, args.json),
         new MacroCompilerTransform) ++
     getLoweringTransforms(HighForm, LowForm) ++
-    Seq(new LowFirrtlOptimization,
-        new midas.passes.DeleteDebugLogic(args.noDebug))
+    Seq(new midas.passes.DeleteDebugLogic(args.noDebug),
+        new strober.passes.SeqMemToRegFile,
+        new LowFirrtlOptimization)
   def emitter = new StroberVerilogEmitter(args.lib, args.macros, args.paths)
 }
 
@@ -35,6 +36,7 @@ object Compiler {
     val macroFile = new File(dir, s"${chirrtl.main}.macros.v")
     val pathFile = new File(dir, s"${chirrtl.main}.macros.path")
     val annotations = new AnnotationMap(Seq(
+      firrtl.transforms.DontCheckCombLoopsAnnotation(),
       InferReadWriteAnnotation(chirrtl.main),
       ReplSeqMemAnnotation(s"-c:${chirrtl.main}:-o:$confFile"),
       MacroCompilerAnnotation(chirrtl.main, MacroCompilerAnnotation.Params(

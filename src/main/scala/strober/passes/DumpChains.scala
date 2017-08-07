@@ -58,20 +58,7 @@ class DumpChains(
                     sum + p.width
                   }
               }
-            case s: DefMemory if s.readLatency > 0 =>
-              val width = bitWidth(s.dataType)
-              (chainType: @unchecked) match {
-                case ChainType.SRAM =>
-                  chainFile write s"$id ${path}.${s.name} ${width} ${s.depth}\n"
-                  width.toInt
-                case ChainType.Trace =>
-                  s.readers.indices foreach (i =>
-                    chainFile write s"$id ${path}.${s.name}.R${i}_data ${width} -1\n")
-                  s.readwriters.indices foreach (i =>
-                    chainFile write s"$id ${path}.${s.name}.RW${i}_rdata ${width} -1\n")
-                  (s.readers.size + s.readwriters.size) * width.toInt
-              }
-            case s: DefMemory if !(debugRegs exists (s.name contains _))=>
+            case s: DefMemory if !(debugRegs exists (s.name contains _)) =>
               val name = verilogRenameN(s.name)
               val width = bitWidth(s.dataType).toInt
               chainType match {
@@ -83,7 +70,7 @@ class DumpChains(
                   sum + width
                 })
               }
-            case s: DefRegister if !deadRegs(s.name) && !(debugRegs exists (s.name contains _))=>
+            case s: DefRegister if !deadRegs(s.name) && !(debugRegs exists (s.name contains _)) =>
               val name = verilogRenameN(s.name)
               val width = bitWidth(s.tpe).toInt
               chainFile write s"$id $path.$name $width -1\n"
