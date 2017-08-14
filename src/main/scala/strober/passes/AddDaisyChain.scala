@@ -363,9 +363,10 @@ class AddDaisyChains(
     val chainNum = 1
     // Filter children who have daisy chains
     val childrenWithChains = meta.childInsts(m.name) filter (x =>
-      hasChain(meta.instModMap(x, m.name)) &&
+      hasChain(meta.instModMap(x, m.name)) && (
+      !param(midas.IsBOOM) ||
       !(m.name == "RocketTile" && x == "fpuOpt") &&
-      !(m.name == "NonBlockingDCache_dcache" && x == "dtlb")
+      !(m.name == "NonBlockingDCache_dcache" && x == "dtlb"))
     )
     val invalids = childrenWithChains flatMap (c => Seq(
       IsInvalid(NoInfo, childDaisyPort(c)("in")),

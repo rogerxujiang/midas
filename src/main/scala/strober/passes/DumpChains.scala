@@ -83,6 +83,7 @@ class DumpChains(
       case _ =>
     }
     meta.childInsts(mod) filter (x =>
+       !param(midas.IsBOOM) ||
        !(mod == "RocketTile" && x == "fpuOpt") &&
        !(mod == "NonBlockingDCache_dcache" && x == "dtlb")
     ) foreach (child => loop(chainFile, meta.instModMap(child, mod), s"${path}.${child}")(chainType))

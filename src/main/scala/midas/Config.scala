@@ -17,6 +17,7 @@ case object KeepSamplesInMem extends Field[Boolean]
 case object MemModelKey extends Field[Option[Parameters => MemModel]]
 case object EndpointKey extends Field[EndpointMap]
 case object NoDebug extends Field[Boolean]
+case object IsBOOM extends Field[Boolean]
 
 class SimConfig extends Config((site, here, up) => {
   case TraceMaxLen      => 1024
@@ -27,6 +28,7 @@ class SimConfig extends Config((site, here, up) => {
   case EnableSnapshot   => false
   case KeepSamplesInMem => true
   case NoDebug          => true
+  case IsBOOM           => false
   case CtrlNastiKey     => NastiParameters(32, 32, 12)
   case MemNastiKey      => NastiParameters(64, 32, 6)
   case EndpointKey      => EndpointMap(Seq(new SimNastiMemIO, new SimAXI4MemIO))
