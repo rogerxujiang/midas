@@ -117,11 +117,11 @@ class FPGATop(simIoType: SimWrapperIO)(implicit p: Parameters) extends Module wi
   // Masters = Target memory channels + loadMemWidget
   val arb = Module(new NastiArbiter(memIoSize+1)(p alterPartial ({ case NastiKey => p(MemNastiKey) })))
   io.mem <> arb.io.slave
-  if (p(MemModelKey) != None) {
+/*  if (p(MemModelKey) != None) {
     val loadMem = addWidget(new LoadMemWidget(MemNastiKey), "LOADMEM")
     loadMem.reset := reset || simReset
     arb.io.master(memIoSize) <> loadMem.io.toSlaveMem
-  }
+  }*/
 
   // Instantiate endpoint widgets
   defaultIOWidget.io.tReset.ready := (simIo.endpoints foldLeft Bool(true)){ (resetReady, endpoint) =>
