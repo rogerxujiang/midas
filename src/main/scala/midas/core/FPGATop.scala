@@ -10,6 +10,7 @@ import scala.collection.mutable.ArrayBuffer
 
 case object MemNastiKey extends Field[NastiParameters]
 case object FpgaMMIOSize extends Field[BigInt]
+case object TargetBaseAddr extends Field[BigInt]
 
 class FPGATopIO(implicit p: Parameters) extends freechips.rocketchip.util.ParameterizedBundle()(p) {
   val ctrl = Flipped(new WidgetMMIO()(p alterPartial ({ case NastiKey => p(CtrlNastiKey) })))
@@ -134,7 +135,12 @@ class FPGATop(simIoType: SimWrapperIO)(implicit p: Parameters) extends Module wi
       val widget = addWidget(endpoint.widget(p), widgetName)
       widget.reset := reset || simReset
       widget match {
-        case model: MemModel => arb.io.master(i) <> model.io.host_mem
+        case model: MemModel => {
+          arb.io.master(i) <> model.io.host_mem
+          // Translate target address to host addresses
+          arb.io.master(i).ar.bits.addr := model.io.host_mem.ar.bits.addr - p(TargetBaseAddr).U
+          arb.io.master(i).aw.bits.addr := model.io.host_mem.aw.bits.addr - p(TargetBaseAddr).U
+        }
         case _ =>
       }
       channels2Port(widget.io.hPort, endpoint(i)._2)

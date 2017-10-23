@@ -30,6 +30,7 @@ class SimConfig extends Config((site, here, up) => {
   case MemModelKey      => Some((p: Parameters) => new SimpleLatencyPipe()(p))
   case FpgaMMIOSize     => BigInt(1) << 12 // 4 KB
   case MidasLLCKey      => None
+  case TargetBaseAddr   => BigInt(0x80000000L)
 })
 
 class ZynqConfig extends Config(new Config((site, here, up) => {

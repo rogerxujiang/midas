@@ -3,6 +3,7 @@ package widgets
 
 import Chisel._
 import junctions._
+import midas.core.TargetBaseAddr
 import freechips.rocketchip.config.{Parameters, Field}
 
 import scala.math.max
@@ -36,7 +37,7 @@ class LoadMemWidget(hKey: Field[NastiParameters])(implicit p: Parameters) extend
   val wAddrQ = genAndAttachQueue(Wire(Decoupled(UInt(p(hKey).addrBits.W))), "W_ADDRESS_L")
   io.toSlaveMem.aw.bits := NastiWriteAddressChannel(
       id = UInt(0),
-      addr = Cat(wAddrH, wAddrQ.bits),
+      addr = Cat(wAddrH, wAddrQ.bits) - p(TargetBaseAddr).U,
       size = size)(p alterPartial ({ case NastiKey => p(hKey) }))
   io.toSlaveMem.aw.valid := wAddrQ.valid
   wAddrQ.ready := io.toSlaveMem.aw.ready
@@ -56,7 +57,7 @@ class LoadMemWidget(hKey: Field[NastiParameters])(implicit p: Parameters) extend
   val rAddrQ = genAndAttachQueue(Wire(Decoupled(UInt(p(hKey).addrBits.W))), "R_ADDRESS_L")
   io.toSlaveMem.ar.bits := NastiReadAddressChannel(
       id = UInt(0),
-      addr = Cat(rAddrH, rAddrQ.bits),
+      addr = Cat(rAddrH, rAddrQ.bits) - p(TargetBaseAddr).U,
       size = size)(p alterPartial ({ case NastiKey => p(hKey) }))
   io.toSlaveMem.ar.valid := rAddrQ.valid
   rAddrQ.ready := io.toSlaveMem.ar.ready
