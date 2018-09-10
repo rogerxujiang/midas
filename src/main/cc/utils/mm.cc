@@ -17,23 +17,30 @@ void mm_base_t::write(uint64_t addr, uint8_t *data) {
 
 void mm_base_t::write(uint64_t addr, uint8_t *data, uint64_t strb, uint64_t size)
 {
-  strb &= ((1L << size) - 1) << (addr % word_size);
-  addr %= this->size;
+  if (addr > this->size) {
+    char buf[40];
+    snprintf(buf, 40, "Out-of-bounds write address %lx\n", addr);
+    throw(mm_exception(buf));
+  }
 
-  uint8_t *base = this->data + (addr / word_size) * word_size;
-  for (int i = 0; i < word_size; i++) {
+  uint8_t *base = this->data + addr;
+  for (size_t i = 0; i < size; i++) {
     if (strb & 1)
       base[i] = data[i];
     strb >>= 1;
   }
 }
 
-std::vector<char> mm_base_t::read(uint64_t addr)
+std::vector<char> mm_base_t::read(uint64_t addr, uint64_t size)
 {
-  addr %= this->size;
+  if (addr > this->size) {
+    char buf[40];
+    snprintf(buf, 40, "Out-of-bounds read address %lx\n", addr);
+    throw(mm_exception(buf));
+  }
 
   uint8_t *base = this->data + addr;
-  return std::vector<char>(base, base + word_size);
+  return std::vector<char>(base, base + size);
 }
 
 void mm_base_t::init(size_t sz, int wsz, int lsz)
@@ -87,7 +94,7 @@ void mm_magic_t::tick(
   if (ar_fire) {
     uint64_t start_addr = (ar_addr / word_size) * word_size;
     for (size_t i = 0; i <= ar_len; i++) {
-      auto dat = read(start_addr + i * word_size);
+      auto dat = read(start_addr + i * word_size, ar_size);
       rresp.push(mm_rresp_t(ar_id, dat, i == ar_len));
     }
   }
