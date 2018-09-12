@@ -31,9 +31,9 @@ void mm_dramsim2_t::write_complete(unsigned id, uint64_t address, uint64_t clock
 {
   assert(!wreq[address].empty());
   auto b_id = wreq[address].front();
+  bresp.push(b_id);
   write_id_busy[b_id] = false;
   wreq[address].pop();
-  bresp.push(b_id);
 }
 
 void power_callback(double a, double b, double c, double d)
@@ -61,11 +61,11 @@ void mm_dramsim2_t::init(size_t sz, int wsz, int lsz)
 }
 
 bool mm_dramsim2_t::ar_ready() {
-  return !read_id_busy[current_arid] && mem->willAcceptTransaction();
+  return mem->willAcceptTransaction();
 }
 
 bool mm_dramsim2_t::aw_ready() {
-  return !write_id_busy[current_awid] && mem->willAcceptTransaction() && !store_inflight;
+  return mem->willAcceptTransaction() && !store_inflight;
 }
 
 void mm_dramsim2_t::tick(
@@ -91,19 +91,27 @@ void mm_dramsim2_t::tick(
   bool r_ready,
   bool b_ready)
 {
-  current_arid = ar_id;
-  current_awid = aw_id;
   bool ar_fire = !reset && ar_valid && ar_ready();
   bool aw_fire = !reset && aw_valid && aw_ready();
   bool w_fire = !reset && w_valid && w_ready();
   bool r_fire = !reset && r_valid() && r_ready;
   bool b_fire = !reset && b_valid() && b_ready;
 
+  if (mem->willAcceptTransaction()) {
+    for (auto it = rreq_queue.begin(); it != rreq_queue.end(); it++) {
+      if (!read_id_busy[it->id]) {
+        read_id_busy[it->id] = true;
+        auto transaction = *it;
+        rreq[transaction.addr].push(transaction);
+        mem->addTransaction(false, transaction.addr);
+        rreq_queue.erase(it);
+        break;
+      }
+    }
+  }
+
   if (ar_fire) {
-    auto transaction = mm_req_t(ar_id, 1 << ar_size, ar_len + 1, ar_addr);
-    read_id_busy[ar_id] = true;
-    rreq[transaction.addr].push(transaction);
-    mem->addTransaction(false, transaction.addr);
+    rreq_queue.push_back(mm_req_t(ar_id, 1 << ar_size, ar_len + 1, ar_addr));
   }
 
   if (aw_fire) {

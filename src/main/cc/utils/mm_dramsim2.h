@@ -7,6 +7,7 @@
 #include <DRAMSim.h>
 #include <map>
 #include <queue>
+#include <list>
 #include <stdint.h>
 
 struct mm_req_t {
@@ -107,13 +108,14 @@ class mm_dramsim2_t : public mm_t
   std::map<uint64_t, std::queue<uint64_t>> wreq;
   std::map<uint64_t, std::queue<mm_req_t>> rreq;
   std::queue<mm_rresp_t> rresp;
+  //std::map<uint64_t, std::queue<mm_rresp_t> > rreq;
+
 
   // Track inflight requests by putting indexes to their positions in the
   // stimulus vector in queues for each AXI channel
-  uint64_t current_arid; // NB: These model combinational paths from {ar,aw}.id -> ar.ready
-  uint64_t current_awid;
   std::vector<bool> read_id_busy;
   std::vector<bool> write_id_busy;
+  std::list<mm_req_t> rreq_queue;
 
   void read_complete(unsigned id, uint64_t address, uint64_t clock_cycle);
   void write_complete(unsigned id, uint64_t address, uint64_t clock_cycle);
