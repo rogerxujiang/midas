@@ -37,7 +37,7 @@ class mm_base_t
 
   void write(uint64_t addr, uint8_t *data);
   void write(uint64_t addr, uint8_t *data, uint64_t strb, uint64_t size);
-  std::vector<char> read(uint64_t addr, uint64_t size);
+  std::vector<char> read(uint64_t addr);
 
   virtual ~mm_base_t();
 

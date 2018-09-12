@@ -18,8 +18,9 @@ void mm_dramsim2_t::read_complete(unsigned id, uint64_t address, uint64_t clock_
 {
   assert(!rreq[address].empty());
   auto req = rreq[address].front();
+  uint64_t start_addr = (req.addr / word_size) * word_size;
   for (size_t i = 0; i < req.len; i++) {
-    auto dat = read(address + i * req.size, req.size);
+    auto dat = read(start_addr + i * word_size);
     rresp.push(mm_rresp_t(req.id, dat, (i == req.len - 1)));
   }
   read_id_busy[req.id] = false;
